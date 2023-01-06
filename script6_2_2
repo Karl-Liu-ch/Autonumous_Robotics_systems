@@ -1,0 +1,8 @@
+log "$time" "$irfm" "$irdistfrontmiddle"
+label "fwd"
+fwd 0.1 @v 0.5
+wait 1
+if($irdistfrontmiddle < 0.1) "end"
+goto "fwd"
+label "end"
+exit
