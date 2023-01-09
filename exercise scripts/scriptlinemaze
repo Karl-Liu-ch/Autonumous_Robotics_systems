@@ -1,0 +1,29 @@
+%visiting gate1
+fwd 0.8
+turn -90
+fwd 0.8
+turn -90
+drive @v0.2:($irdistright<0.4)
+fwd -0.3
+turn -90
+%going to gate2
+%fwd 0.8 
+%turn 90%comment these two lines while running
+
+followline "bm" @v0.2:($crossingblackline!=0)
+fwd 0.5
+turn -90
+followline "bm" @v0.2:($crossingblackline!=0)
+fwd 0.2
+turn 90
+followline "bm" @v0.2:($irdistright<0.4)
+%going to gate3
+fwd -0.4
+turn 90 
+followline "bm" @v0.2:($crossingblackline!=0)
+fwd 0.2
+turn 90
+followline "bm" @v0.2:($crossingblackline!=0)
+fwd 0.2
+turn -90
+drive @v0.2:($irdistright<0.4)

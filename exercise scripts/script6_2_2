@@ -1,0 +1,11 @@
+log "$time" "$irfm" "$irdistfrontmiddle"
+label "begin"
+if($irdistfrontmiddle > 0.15) "fwd"
+goto "end"
+label "fwd"
+fwd 0.1 @v 0.05
+wait 1
+if($irdistfrontmiddle < 0.15) "end"
+goto "begin"
+label "end"
+exit
