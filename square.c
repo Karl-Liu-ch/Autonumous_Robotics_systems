@@ -63,12 +63,19 @@ getoutputref(const char *sym_name, symTableElement *tab)
 /*****************************************
  * odometry
  */
-#define WHEEL_DIAMETER 0.06522 /* m */
-#define WHEEL_SEPARATION 0.26  /* m */
-#define DELTA_M (M_PI * WHEEL_DIAMETER / 2000)
+
+#define ED 0.9999
+#define WHEEL_DIAMETER_L 0.06522 * (1 + (1 - ED) / 2)/* m */
+#define WHEEL_DIAMETER_R 0.06522 * (1 - (1 - ED) / 2)
+#define WHEEL_SEPARATION 0.2592  /* m */
+#define DELTA_M_L (M_PI * WHEEL_DIAMETER_L / 2000)
+#define DELTA_M_R (M_PI * WHEEL_DIAMETER_R / 2000)
 #define DEFAULT_ROBOTPORT 24902
 #define EPSILON 0.01
 #define K 2.0
+#define KP 2.0
+#define KI 2.0
+#define KD 2.0
 
 typedef struct
 {                          // input signals
@@ -99,6 +106,7 @@ typedef struct
   double start_theta;
   double angle;
   double left_pos, right_pos;
+  double error_cur, error_old, error_all;
   // parameters
   double w;
   // output
@@ -120,14 +128,27 @@ enum
 
 typedef struct
 {
-  int left, right, middle, length, find_l, find_r;
+  int left, right, length, find_l, find_r, crossline;
   double left_pos, right_pos, middle_pos;
 } linesensortype;
+
+typedef struct
+{
+  int left, right, length, find_l, find_r, crossline;
+  double left_pos, right_pos, middle_pos;
+} irsensortype;
+
+typedef struct
+{
+  int left, right, length, find_l, find_r, crossline;
+  double left_pos, right_pos, middle_pos;
+} lasersensortype;
 
 void update_motcon(motiontype *p, odotype *q, linesensortype *line);
 
 int fwd(double dist, double speed, int time);
 int turn(double angle, double speed, int time);
+int follow_black(double speed, int time);
 
 void segfaulthandler(int sig)
 {
@@ -182,6 +203,7 @@ enum
 double logdat[10000][6] = {0}; // 0 time   1 speedl    2 speedr
 int logcount = 0;
 double linesensorlog[10000][13];
+double irsensorlog[10000][5];
 
 int main(int argc, char **argv)
 {
@@ -326,9 +348,9 @@ int main(int argc, char **argv)
    */
   rhdSync();
 
-  odo.w = 0.256;
-  odo.cr = DELTA_M;
-  odo.cl = odo.cr;
+  odo.w = WHEEL_SEPARATION;
+  odo.cr = DELTA_M_R;
+  odo.cl = DELTA_M_L;
   odo.left_enc = lenc->data[0];
   odo.right_enc = renc->data[0];
   reset_odo(&odo);
@@ -365,19 +387,19 @@ int main(int argc, char **argv)
     {
     case ms_init:
       n = 4;
-      dist = 1;
+      dist = 2;
       angle = 90.0 / 180 * M_PI;
       mission.state = ms_fwd;
       // mission.state = ms_follow_black;
       break;
 
     case ms_fwd:
-      if (fwd(dist, 0.6, mission.time))
+      if (fwd(dist, 0.4, mission.time))
         mission.state = ms_turn;
       break;
 
     case ms_turn:
-      if (turn(angle, 0.6, mission.time))
+      if (turn(angle, 0.4, mission.time))
       {
         n = n - 1;
         if (n == 0)
@@ -388,7 +410,7 @@ int main(int argc, char **argv)
       break;
 
     // case ms_fwd:
-    //   if (fwd(0.5, 0.1, mission.time))
+    //   if (fwd(dist, 0.4, mission.time))
     //   {
     //     n = n - 1;
     //     if (n == 0)
@@ -397,10 +419,11 @@ int main(int argc, char **argv)
     //       mission.state = ms_fwd;
     //   }
     //   break;
+
     case ms_follow_black:
       if (follow_black(0.3, mission.time))
       {
-        mission.state = ms_end;
+        mission.state = ms_fwd;
       }
       break;
 
@@ -426,6 +449,10 @@ int main(int argc, char **argv)
     logdat[logcount][3] = odo.x;
     logdat[logcount][4] = odo.y;
     logdat[logcount][5] = odo.theta;
+    for (int i = 0; i < irsensor->length; i++)
+    {
+      irsensorlog[logcount][i] = irsensor->data[i];
+    }
     for (int i = 0; i < linesensor->length; i++)
     {
       linesensorlog[logcount][i] = linesensor->data[i];
@@ -444,6 +471,13 @@ int main(int argc, char **argv)
       {
         fprintf(fp, "%f ", logdat[i][j]);
       }
+      fprintf(fp, "\n");
+    }
+    fclose(fp);
+
+    fp = fopen("linesensor.txt", "w");
+    for (int i = 0; i < logcount; i++)
+    {
       for (int j = 0; j < linesensor->length; j++)
       {
         fprintf(fp, "%f ", linesensorlog[i][j]);
@@ -457,9 +491,17 @@ int main(int argc, char **argv)
     }
     fclose(fp);
 
-    fp = fopen("testlinesensor.txt", "w");
-    fprintf(fp, "%f", linesensor->length);
+    fp = fopen("irsensor.txt", "w");
+    for (int i = 0; i < logcount; i++)
+    {
+      for (int j = 0; j < irsensor->length; j++)
+      {
+        fprintf(fp, "%f ", irsensorlog[i][j]);
+      }
+      fprintf(fp, "\n");
+    }
     fclose(fp);
+
     /*insert data collection here*/
 
     if (time % 100 == 0)
@@ -549,7 +591,7 @@ double accelerate_speed(double old_speed, double desired_speed, double dist, dou
 double angular_control(double desired_theta, double current_theta, double k, double w)
 {
   double turn_angle_speed = k * (desired_theta - current_theta);
-  return turn_angle_speed * w * 0.5;
+  return turn_angle_speed * w * 0.5 + EPSILON;
 }
 
 // exercise 3.4
@@ -599,6 +641,8 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
   double desire_theta = p->angle + p->start_theta;
   double delta_theta = desire_theta - q->theta;
   double direction = fabs(p->angle) / p->angle;
+  double error_black_I = 0;
+  double error_old = 0;
   switch (p->curcmd)
   {
   case mot_stop:
@@ -607,7 +651,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
   case mot_move:
 
-    if ((p->right_pos + p->left_pos) / 2 - p->startpos > p->dist)
+    if (fabs((p->right_pos + p->left_pos) / 2 - p->startpos) > fabs(p->dist))
     {
       p->finished = 1;
       p->motorspeed_l = 0;
@@ -617,25 +661,30 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     {
       // p->motorspeed_l = p->speedcmd;
       // p->motorspeed_r = p->speedcmd;
-      double dist = p->dist - ((p->right_pos + p->left_pos) / 2 - p->startpos);
+      double direction = fabs(p->dist) / p->dist;
+      double dist = fabs(p->dist - direction * ((p->right_pos + p->left_pos) / 2 - p->startpos));
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_l = accelerate_speed(p->motorspeed_l_old, p->speedcmd - angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      // p->motorspeed_l = direction * accelerate_speed(fabs(p->motorspeed_l_old), p->speedcmd - direction * angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      // p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd + direction * angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      p->motorspeed_l = direction * accelerate_speed(fabs(p->motorspeed_l_old), p->speedcmd, dist, 0.5);
+      p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, 0.5);
     }
     break;
 
   case mot_turn:
     if (direction * delta_theta >= 0)
     { 
-      p->motorspeed_l=-direction * p->speedcmd;
-      p->motorspeed_r=direction * p->speedcmd;
+      // p->motorspeed_l=-direction * p->speedcmd;
+      // p->motorspeed_r=direction * p->speedcmd;
       // exercise 3.6
-      // double dist = fabs(0.5 * delta_theta * p->w);
-      // p->motorspeed_l_old = p->motorspeed_l;
-      // p->motorspeed_r_old = p->motorspeed_r;
-      // p->motorspeed_r = direction * accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(desire_theta, q->theta, K, p->w), dist, 0.5);
-      // p->motorspeed_l = -direction * accelerate_speed(p->motorspeed_r_old, p->speedcmd - angular_control(desire_theta, q->theta, K, p->w), dist, 0.5);
+      double dist = fabs(0.5 * delta_theta * p->w);
+      p->motorspeed_l_old = p->motorspeed_l;
+      p->motorspeed_r_old = p->motorspeed_r;
+      // p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, 0.5);
+      // p->motorspeed_l = -direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, 0.5);
+      p->motorspeed_r = direction * angular_control(desire_theta, q->theta, K, p->w);
+      p->motorspeed_l = -direction * angular_control(desire_theta, q->theta, K, p->w);
     }
     else
     {
@@ -646,13 +695,16 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
 
   case mot_follow_black:
-    if (line->find_l)
+    if (line->find_l && (!(line->crossline)))
     {
       double error = line->left_pos;
+      double error_black_D = error - error_old;
+      error_black_I += error;
+      error_old = error;
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + K * error, 10, 0.5);
-      p->motorspeed_l = accelerate_speed(p->motorspeed_r_old, p->speedcmd - K * error, 10, 0.5);
+      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + KP * error + KI * error_black_I + KD * error_black_D, 10, 0.5);
+      p->motorspeed_l = accelerate_speed(p->motorspeed_r_old, p->speedcmd - KP * error - KI * error_black_I - KD * error_black_D, 10, 0.5);
     }
     else
     {
@@ -772,6 +824,16 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
   p = right;
   q = left;
   line->find_l = line->find_r = 0;
+  for (int i = 0; i < linesensor->length; i++){
+    if(linesensor->data[i] == 0){
+      if(i == (linesensor->length - 1)){
+        line->crossline = 1;
+      }
+    }
+    else{
+      line->crossline = 0;
+    }
+  }
   for (int i = 0; i < linesensor->length; i++)
   {
     if (*right == 0)
@@ -788,7 +850,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
     {
       p++;
     }
-    if (*right == 0)
+    if (*left == 0)
     {
       line->find_l = 1;
     }
@@ -810,7 +872,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
 
 void calibrate_linesensor(linesensortype *line, double w)
 {
-  double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length - 1.0);
+  double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length);
   line->left_pos = delta_sensor * (line->left) - middlepos;
   line->right_pos = delta_sensor * (line->right) - middlepos;
 }
