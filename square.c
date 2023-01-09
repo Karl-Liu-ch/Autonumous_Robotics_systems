@@ -813,7 +813,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
 {
   int crossline(int i, int *data){
     if(*data == 0){
-      if(i-- > 0){
+      if(--i > 0){
         if(crossline(i, ++data)){
           return 1;
         }
@@ -833,7 +833,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
   p = right;
   q = left;
   line->find_l = line->find_r = 0;
-  line->crossline = crossline(linesensor->length - 1, linesensor->data);
+  line->crossline = crossline(linesensor->length, linesensor->data);
   for (int i = 0; i < linesensor->length; i++)
   {
     if (*right == 0)
