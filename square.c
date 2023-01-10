@@ -73,10 +73,10 @@ getoutputref(const char *sym_name, symTableElement *tab)
 #define DEFAULT_ROBOTPORT 24902
 #define EPSILON 0.01
 #define K 2.0
-#define KP 2.0
-#define KI 2.0
-#define KD 2.0
-#define ACCELERATION 50.0
+#define KP 20.0
+#define KI 1.0
+#define KD 1.0
+#define ACCELERATION 1.0
 
 typedef struct
 {                          // input signals
@@ -89,6 +89,7 @@ typedef struct
   double pos, theta, x, y;
   // internal variables
   int left_enc_old, right_enc_old;
+  double error_cur, error_old, error_all;
 } odotype;
 
 void reset_odo(odotype *p);
@@ -107,7 +108,6 @@ typedef struct
   double start_theta;
   double angle;
   double left_pos, right_pos;
-  double error_cur, error_old, error_all;
   // parameters
   double w;
   // output
@@ -149,8 +149,8 @@ typedef struct
 void update_motcon(motiontype *p, odotype *q, linesensortype *line);
 int fwd(double dist, double speed, int time);
 int turn(double angle, double speed, int time);
-int follow_black_l(double speed, int time);
-int follow_black_r(double speed, int time);
+int follow_black_l(double speed, double dist, int time);
+int follow_black_r(double speed, double dist, int time);
 
 void segfaulthandler(int sig)
 {
@@ -194,8 +194,8 @@ void calibrate_linesensor(linesensortype *line, double w);
 void square(smtype *p, double dist, double direction, double speed);
 void mission_fwd(smtype *p, int i, double dist, double speed);
 void mission_turn(smtype *p, int i, double angle, double speed);
-void mission_follow_black_l_line(smtype *p, int i, double speed);
-void mission_follow_black_r_line(smtype *p, int i, double speed);
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist);
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist);
 void mission_1(smtype *p);
 
 // SMR input/output data
@@ -434,7 +434,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_l:
-      if (follow_black_l(mission.speed[mission.state_index], mission.time))
+      if (follow_black_l(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
       {
         // mission.state = ms_end;
         mission.state_index++;
@@ -443,7 +443,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_r:
-      if (follow_black_r(mission.speed[mission.state_index], mission.time))
+      if (follow_black_r(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
       {
         // mission.state = ms_end;
         mission.state_index++;
@@ -656,10 +656,12 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
       break;
 
     case mot_follow_black_l:
+      p->startpos = (p->left_pos + p->right_pos) / 2;
       p->curcmd = mot_follow_black_l;
       break;
 
     case mot_follow_black_r:
+      p->startpos = (p->left_pos + p->right_pos) / 2;
       p->curcmd = mot_follow_black_r;
       break;
 
@@ -679,8 +681,6 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
   double desire_theta = p->angle + p->start_theta;
   double delta_theta = desire_theta - q->theta;
   double direction = fabs(p->angle) / p->angle;
-  double error_black_I = 0;
-  double error_old = 0;
   switch (p->curcmd)
   {
   case mot_stop:
@@ -733,42 +733,48 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
 
   case mot_follow_black_l:
-    if (line->find_l && (!(line->crossline)))
+    if (line->find_l && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
-      double error = line->left_pos;
-      double error_black_D = error - error_old;
-      error_black_I += error;
-      error_old = error;
+      double error = line->left_pos * fabs(p->speedcmd);
+      double error_black_D = error - q->error_old;
+      double direction = fabs(p->speedcmd) / p->speedcmd;
+      q->error_all += error;
+      q->error_old = error;
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + KP * (error + KI * error_black_I + KD * error_black_D), 100, ACCELERATION);
-      p->motorspeed_l = accelerate_speed(p->motorspeed_r_old, p->speedcmd + KP * (-error - KI * error_black_I - KD * error_black_D), 100, ACCELERATION);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
     }
     else
     {
       p->motorspeed_l = 0;
       p->motorspeed_r = 0;
       p->finished = 1;
+      q->error_all = 0;
+      q->error_old = 0;
     }
     break;
 
   case mot_follow_black_r:
-    if (line->find_r && (!(line->crossline)))
+    if (line->find_r && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
-      double error = line->right_pos;
-      double error_black_D = error - error_old;
-      error_black_I += error;
-      error_old = error;
+      double error = line->right_pos * fabs(p->speedcmd);
+      double error_black_D = error - q->error_old;
+      double direction = fabs(p->speedcmd) / p->speedcmd;
+      q->error_all += error;
+      q->error_old = error;
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + KP * (error + KI * error_black_I + KD * error_black_D), 100, ACCELERATION);
-      p->motorspeed_l = accelerate_speed(p->motorspeed_r_old, p->speedcmd + KP * (-error - KI * error_black_I - KD * error_black_D), 100, ACCELERATION);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
     }
     else
     {
       p->motorspeed_l = 0;
       p->motorspeed_r = 0;
       p->finished = 1;
+      q->error_all = 0;
+      q->error_old = 0;
     }
     break;
 
@@ -846,11 +852,12 @@ int turn(double angle, double speed, int time)
     return mot.finished;
 }
 
-int follow_black_l(double speed, int time)
+int follow_black_l(double speed, double dist, int time)
 {
   if (time == 0)
   {
     mot.cmd = mot_follow_black_l;
+    mot.dist = dist;
     mot.speedcmd = speed;
     return 0;
   }
@@ -858,11 +865,12 @@ int follow_black_l(double speed, int time)
     return mot.finished;
 }
 
-int follow_black_r(double speed, int time)
+int follow_black_r(double speed, double dist, int time)
 {
   if (time == 0)
   {
     mot.cmd = mot_follow_black_r;
+    mot.dist = dist;
     mot.speedcmd = speed;
     return 0;
   }
@@ -996,36 +1004,51 @@ void mission_turn(smtype *p, int i, double angle, double speed){
   p->speed[i] = speed;
 }
 
-void mission_follow_black_l_line(smtype *p, int i, double speed){
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist){
   p->states_set[i] = ms_follow_black_l;
+  p->dist[i] = dist;
   p->speed[i] = speed;
 }
 
-void mission_follow_black_r_line(smtype *p, int i, double speed){
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist){
   p->states_set[i] = ms_follow_black_r;
+  p->dist[i] = dist;
   p->speed[i] = speed;
 }
 
 void mission_1(smtype *p){
+  int i = 1;
   p->state = ms_init;
   p->state_index = 0;
   p->oldstate = -1;
-  mission_follow_black_l_line(p, 1, 0.3);
-  mission_fwd(p, 2, 0.23, 0.3);
-  mission_turn(p, 3, -90.0, 0.3);
-  mission_follow_black_l_line(p, 4, 0.3);
-  mission_fwd(p, 5, 0.23, 0.3);
-  mission_turn(p, 6, -90.0, 0.3);
-  mission_follow_black_l_line(p, 7, 0.3);
-  mission_fwd(p, 8, -0.23, 0.3);
-  mission_follow_black_r_line(p, 9, -0.3);
-  mission_fwd(p, 10, 0.23, 0.3);
-  mission_turn(p, 11, -70.0, 0.3);
-  mission_follow_black_r_line(p, 12, 0.3);
-  mission_fwd(p, 13, 0.5, 0.3);
-  mission_turn(p, 14, -90.0, 0.3);
-  mission_follow_black_r_line(p, 15, 0.3);
-  mission_fwd(p, 16, 0.5, 0.3);
-  mission_follow_black_r_line(p, 17, 0.3);
-  p->states_set[18] = ms_end;
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, -0.23, 0.3);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 0.5);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.5, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.5, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, -0.23, 0.3);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 0.5);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  p->states_set[i++] = ms_end;
 }
