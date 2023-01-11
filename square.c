@@ -63,12 +63,20 @@ getoutputref(const char *sym_name, symTableElement *tab)
 /*****************************************
  * odometry
  */
-#define WHEEL_DIAMETER 0.06522 /* m */
-#define WHEEL_SEPARATION 0.26  /* m */
-#define DELTA_M (M_PI * WHEEL_DIAMETER / 2000)
+
+#define ED 0.9999
+#define WHEEL_DIAMETER_L 0.06522 * (1 + (1 - ED) / 2) /* m */
+#define WHEEL_DIAMETER_R 0.06522 * (1 - (1 - ED) / 2)
+#define WHEEL_SEPARATION 0.2596 /* m */
+#define DELTA_M_L (M_PI * WHEEL_DIAMETER_L / 2000)
+#define DELTA_M_R (M_PI * WHEEL_DIAMETER_R / 2000)
 #define DEFAULT_ROBOTPORT 24902
 #define EPSILON 0.01
 #define K 2.0
+#define KP 20.0
+#define KI 1.0
+#define KD 1.0
+#define ACCELERATION 1.0
 
 typedef struct
 {                          // input signals
@@ -81,6 +89,7 @@ typedef struct
   double pos, theta, x, y;
   // internal variables
   int left_enc_old, right_enc_old;
+  double error_cur, error_old, error_all;
 } odotype;
 
 void reset_odo(odotype *p);
@@ -115,19 +124,33 @@ enum
   mot_stop = 1,
   mot_move,
   mot_turn,
-  mot_follow_black,
+  mot_follow_black_l,
+  mot_follow_black_r,
 };
 
 typedef struct
 {
-  int left, right, middle, length, find_l, find_r;
+  int left, right, length, find_l, find_r, crossline;
   double left_pos, right_pos, middle_pos;
 } linesensortype;
 
-void update_motcon(motiontype *p, odotype *q, linesensortype *line);
+typedef struct
+{
+  int left, right, length, find_l, find_r, crossline;
+  double left_pos, right_pos, middle_pos;
+} irsensortype;
 
+typedef struct
+{
+  int left, right, length, find_l, find_r, crossline;
+  double left_pos, right_pos, middle_pos;
+} lasersensortype;
+
+void update_motcon(motiontype *p, odotype *q, linesensortype *line);
 int fwd(double dist, double speed, int time);
 int turn(double angle, double speed, int time);
+int follow_black_l(double speed, double dist, int time);
+int follow_black_r(double speed, double dist, int time);
 
 void segfaulthandler(int sig)
 {
@@ -149,16 +172,31 @@ void ctrlchandler(int sig)
   running = 0;
 }
 
+// typedef struct
+// {
+//   int state, oldstate;
+//   int time;
+// } smtype;
+
 typedef struct
 {
   int state, oldstate;
+  int states_set[1000];
+  double dist[1000], angle[1000], speed[1000];
+  int state_index;
   int time;
 } smtype;
 
 void sm_update(smtype *p);
-
+int crossline(int i, int *data);
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w);
 void calibrate_linesensor(linesensortype *line, double w);
+void square(smtype *p, double dist, double direction, double speed);
+void mission_fwd(smtype *p, int i, double dist, double speed);
+void mission_turn(smtype *p, int i, double angle, double speed);
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist);
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist);
+void mission_1(smtype *p);
 
 // SMR input/output data
 
@@ -175,13 +213,12 @@ enum
   ms_init,
   ms_fwd,
   ms_turn,
-  ms_follow_black,
+  ms_follow_black_l,
+  ms_follow_black_r,
   ms_end
 };
 
-double logdat[10000][6] = {0}; // 0 time   1 speedl    2 speedr
 int logcount = 0;
-double linesensorlog[10000][13];
 
 int main(int argc, char **argv)
 {
@@ -326,17 +363,17 @@ int main(int argc, char **argv)
    */
   rhdSync();
 
-  odo.w = 0.256;
-  odo.cr = DELTA_M;
-  odo.cl = odo.cr;
+  odo.w = WHEEL_SEPARATION;
+  odo.cr = DELTA_M_R;
+  odo.cl = DELTA_M_L;
   odo.left_enc = lenc->data[0];
   odo.right_enc = renc->data[0];
   reset_odo(&odo);
   printf("position: %f, %f\n", odo.left_pos, odo.right_pos);
   mot.w = odo.w;
   running = 1;
-  mission.state = ms_init;
-  mission.oldstate = -1;
+  // square(&mission, 2.0, 1.0, 0.3);
+  mission_1(&mission);
   while (running)
   {
     if (lmssrv.config && lmssrv.status && lmssrv.connected)
@@ -364,43 +401,53 @@ int main(int argc, char **argv)
     switch (mission.state)
     {
     case ms_init:
-      n = 4;
-      dist = 1;
-      angle = 90.0 / 180 * M_PI;
-      mission.state = ms_fwd;
-      // mission.state = ms_follow_black;
+      // n = 4;
+      // dist = 1;
+      // angle = -90.0 / 180 * M_PI;
+      // mission.state = ms_fwd;
+      mission.state_index++;
+      mission.state = mission.states_set[mission.state_index];
+      // mission.state = ms_follow_black_l;
       break;
 
     case ms_fwd:
-      if (fwd(dist, 0.6, mission.time))
-        mission.state = ms_turn;
-      break;
 
-    case ms_turn:
-      if (turn(angle, 0.6, mission.time))
-      {
-        n = n - 1;
-        if (n == 0)
-          mission.state = ms_end;
-        else
-          mission.state = ms_fwd;
+      if (fwd(mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time)){
+        // mission.state = ms_turn;
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
       }
       break;
 
-    // case ms_fwd:
-    //   if (fwd(0.5, 0.1, mission.time))
-    //   {
-    //     n = n - 1;
-    //     if (n == 0)
-    //       mission.state = ms_end;
-    //     else
-    //       mission.state = ms_fwd;
-    //   }
-    //   break;
-    case ms_follow_black:
-      if (follow_black(0.3, mission.time))
+    case ms_turn:
+      if (turn(mission.angle[mission.state_index], mission.speed[mission.state_index], mission.time)){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      // {
+      //   n = n - 1;
+      //   if (n == 0)
+      //     mission.state = ms_end;
+      //   else
+      //     mission.state = ms_fwd;
+      // }
+      break;
+
+    case ms_follow_black_l:
+      if (follow_black_l(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
       {
-        mission.state = ms_end;
+        // mission.state = ms_end;
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_follow_black_r:
+      if (follow_black_r(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
+      {
+        // mission.state = ms_end;
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
       }
       break;
 
@@ -420,46 +467,75 @@ int main(int argc, char **argv)
     speedr->updated = 1;
 
     update_linesensor(linesensor, &line, odo.w);
-    logdat[logcount][0] = logcount;
-    logdat[logcount][1] = mot.motorspeed_l;
-    logdat[logcount][2] = mot.motorspeed_r;
-    logdat[logcount][3] = odo.x;
-    logdat[logcount][4] = odo.y;
-    logdat[logcount][5] = odo.theta;
-    for (int i = 0; i < linesensor->length; i++)
-    {
-      linesensorlog[logcount][i] = linesensor->data[i];
+    if(logcount == 0){
+      FILE *fp;
+      fp = fopen("log.dat", "w");
+      fprintf(fp, "%d %f %f %f %f %f \n", logcount, mot.motorspeed_l, mot.motorspeed_r, odo.x, odo.y, odo.theta);
+      fclose(fp);
     }
-    linesensorlog[logcount][8] = line.left;
-    linesensorlog[logcount][9] = line.right;
-    linesensorlog[logcount][10] = line.left_pos;
-    linesensorlog[logcount][11] = line.right_pos;
-    linesensorlog[logcount][12] = line.find_l;
-    logcount++;
-    FILE *fp;
-    fp = fopen("test.txt", "w");
-    for (int i = 0; i < logcount; i++)
-    {
-      for (int j = 0; j < 6; j++)
-      {
-        fprintf(fp, "%f ", logdat[i][j]);
-      }
-      for (int j = 0; j < linesensor->length; j++)
-      {
-        fprintf(fp, "%f ", linesensorlog[i][j]);
-      }
-      fprintf(fp, "%f ", linesensorlog[i][8]);
-      fprintf(fp, "%f ", linesensorlog[i][9]);
-      fprintf(fp, "%f ", linesensorlog[i][10]);
-      fprintf(fp, "%f ", linesensorlog[i][11]);
-      fprintf(fp, "%f ", linesensorlog[i][12]);
-      fprintf(fp, "\n");
+    else{
+      FILE *fp;
+      fp = fopen("log.dat", "a");
+      fprintf(fp, "%d %f %f %f %f %f \n", logcount, mot.motorspeed_l, mot.motorspeed_r, odo.x, odo.y, odo.theta);
+      fclose(fp);
     }
-    fclose(fp);
 
-    fp = fopen("testlinesensor.txt", "w");
-    fprintf(fp, "%f", linesensor->length);
-    fclose(fp);
+    if(logcount == 0){
+      FILE *fp;
+      fp = fopen("linesensorlog.dat", "w");
+      for (int i = 0; i < linesensor->length; i++)
+      {
+        fprintf(fp, "%d ", linesensor->data[i]);
+      }
+      fprintf(fp, "%d ", line.left);
+      fprintf(fp, "%d ", line.right);
+      fprintf(fp, "%f ", line.left_pos);
+      fprintf(fp, "%f ", line.right_pos);
+      fprintf(fp, "%d ", line.find_l);
+      fprintf(fp, "%d ", line.crossline);
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    else{
+      FILE *fp;
+      fp = fopen("linesensorlog.dat", "a");
+      for (int i = 0; i < linesensor->length; i++)
+      {
+        fprintf(fp, "%d ", linesensor->data[i]);
+      }
+      fprintf(fp, "%d ", line.left);
+      fprintf(fp, "%d ", line.right);
+      fprintf(fp, "%f ", line.left_pos);
+      fprintf(fp, "%f ", line.right_pos);
+      fprintf(fp, "%d ", line.find_l);
+      fprintf(fp, "%d ", line.crossline);
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    
+    if(logcount == 0){
+      FILE *fp;
+      fp = fopen("irsensorlog.dat", "w");
+      for (int i = 0; i < irsensor->length; i++)
+      {
+        fprintf(fp, "%d ", irsensor->data[i]);
+      }
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    else{
+      FILE *fp;
+      fp = fopen("irsensorlog.dat", "a");
+      for (int i = 0; i < irsensor->length; i++)
+      {
+        fprintf(fp, "%d ", irsensor->data[i]);
+      }
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+
+    logcount++;
+
     /*insert data collection here*/
 
     if (time % 100 == 0)
@@ -549,7 +625,7 @@ double accelerate_speed(double old_speed, double desired_speed, double dist, dou
 double angular_control(double desired_theta, double current_theta, double k, double w)
 {
   double turn_angle_speed = k * (desired_theta - current_theta);
-  return turn_angle_speed * w * 0.5;
+  return turn_angle_speed * w * 0.5 + EPSILON;
 }
 
 // exercise 3.4
@@ -579,8 +655,14 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
       p->curcmd = mot_move;
       break;
 
-    case mot_follow_black:
-      p->curcmd = mot_follow_black;
+    case mot_follow_black_l:
+      p->startpos = (p->left_pos + p->right_pos) / 2;
+      p->curcmd = mot_follow_black_l;
+      break;
+
+    case mot_follow_black_r:
+      p->startpos = (p->left_pos + p->right_pos) / 2;
+      p->curcmd = mot_follow_black_r;
       break;
 
     case mot_turn:
@@ -607,7 +689,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
   case mot_move:
 
-    if ((p->right_pos + p->left_pos) / 2 - p->startpos > p->dist)
+    if (fabs((p->right_pos + p->left_pos) / 2 - p->startpos) > fabs(p->dist))
     {
       p->finished = 1;
       p->motorspeed_l = 0;
@@ -617,42 +699,30 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     {
       // p->motorspeed_l = p->speedcmd;
       // p->motorspeed_r = p->speedcmd;
-      double dist = p->dist - ((p->right_pos + p->left_pos) / 2 - p->startpos);
+      double direction = fabs(p->dist) / p->dist;
+      double dist = fabs(p->dist - direction * ((p->right_pos + p->left_pos) / 2 - p->startpos));
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_l = accelerate_speed(p->motorspeed_l_old, p->speedcmd - angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      // p->motorspeed_l = direction * accelerate_speed(fabs(p->motorspeed_l_old), p->speedcmd - direction * angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      // p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd + direction * angular_control(p->start_theta, q->theta, K, p->w), dist, 0.5);
+      p->motorspeed_l = direction * accelerate_speed(fabs(p->motorspeed_l_old), p->speedcmd, dist, ACCELERATION);
+      p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, ACCELERATION);
     }
     break;
 
   case mot_turn:
     if (direction * delta_theta >= 0)
-    { 
-      p->motorspeed_l=-direction * p->speedcmd;
-      p->motorspeed_r=direction * p->speedcmd;
+    {
+      // p->motorspeed_l=-direction * p->speedcmd;
+      // p->motorspeed_r=direction * p->speedcmd;
       // exercise 3.6
-      // double dist = fabs(0.5 * delta_theta * p->w);
-      // p->motorspeed_l_old = p->motorspeed_l;
-      // p->motorspeed_r_old = p->motorspeed_r;
-      // p->motorspeed_r = direction * accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(desire_theta, q->theta, K, p->w), dist, 0.5);
-      // p->motorspeed_l = -direction * accelerate_speed(p->motorspeed_r_old, p->speedcmd - angular_control(desire_theta, q->theta, K, p->w), dist, 0.5);
-    }
-    else
-    {
-      p->motorspeed_l = 0;
-      p->motorspeed_r = 0;
-      p->finished = 1;
-    }
-    break;
-
-  case mot_follow_black:
-    if (line->find_l)
-    {
-      double error = line->left_pos;
+      double dist = fabs(0.5 * delta_theta * p->w);
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + K * error, 10, 0.5);
-      p->motorspeed_l = accelerate_speed(p->motorspeed_r_old, p->speedcmd - K * error, 10, 0.5);
+      p->motorspeed_r = direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, ACCELERATION);
+      p->motorspeed_l = -direction * accelerate_speed(fabs(p->motorspeed_r_old), p->speedcmd, dist, ACCELERATION);
+      // p->motorspeed_r = direction * angular_control(desire_theta, q->theta, K, p->w);
+      // p->motorspeed_l = -direction * angular_control(desire_theta, q->theta, K, p->w);
     }
     else
     {
@@ -662,51 +732,97 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     }
     break;
 
-  // case mot_turn:
-  //   if (p->angle > 0)
-  //   {
-  //     // if ((p->right_pos-p->startpos) < 0.5*p->angle*p->w){
-  //     if ((p->angle + p->start_theta - q->theta) > 0)
-  //     {
-  //       p->motorspeed_l=-p->speedcmd;
-  //       p->motorspeed_r=p->speedcmd;
-  //       // exercise 3.6
-  //       // double dist = 0.5 * (p->angle - (q->theta - p->start_theta)) * p->w;
-  //       // p->motorspeed_l_old = p->motorspeed_l;
-  //       // p->motorspeed_r_old = p->motorspeed_r;
-  //       // p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
-  //       // p->motorspeed_l = -accelerate_speed(p->motorspeed_r_old, p->speedcmd - angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
-  //     }
-  //     else
-  //     {
-  //       p->motorspeed_l = 0;
-  //       p->motorspeed_r = 0;
-  //       p->finished = 1;
-  //     }
-  //   }
-  //   else
-  //   {
-  //     // if (p->left_pos-p->startpos < 0.5*fabs(p->angle)*p->w){
-  //     if (fabs(p->angle + p->start_theta - q->theta) > 0)
-  //     {
-  //       p->motorspeed_l=p->speedcmd;
-  //       p->motorspeed_r=-p->speedcmd;
-  //       // exercise 3.6
-  //       // double dist = 0.5 * (p->angle + p->start_theta - q->theta) * p->w;
-  //       // p->motorspeed_l_old = p->motorspeed_l;
-  //       // p->motorspeed_r_old = p->motorspeed_r;
-  //       // p->motorspeed_l = accelerate_speed(p->motorspeed_l_old, p->speedcmd, dist, 0.5);
-  //       // p->motorspeed_r = -p->motorspeed_l;
-  //     }
-  //     else
-  //     {
-  //       p->motorspeed_r = 0;
-  //       p->motorspeed_l = 0;
-  //       p->finished = 1;
-  //     }
-  //   }
+  case mot_follow_black_l:
+    if (line->find_l && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    {
+      double error = line->left_pos * fabs(p->speedcmd);
+      double error_black_D = error - q->error_old;
+      double direction = fabs(p->speedcmd) / p->speedcmd;
+      q->error_all += error;
+      q->error_old = error;
+      p->motorspeed_l_old = p->motorspeed_l;
+      p->motorspeed_r_old = p->motorspeed_r;
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+    }
+    else
+    {
+      p->motorspeed_l = 0;
+      p->motorspeed_r = 0;
+      p->finished = 1;
+      q->error_all = 0;
+      q->error_old = 0;
+    }
+    break;
 
-  //   break;
+  case mot_follow_black_r:
+    if (line->find_r && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    {
+      double error = line->right_pos * fabs(p->speedcmd);
+      double error_black_D = error - q->error_old;
+      double direction = fabs(p->speedcmd) / p->speedcmd;
+      q->error_all += error;
+      q->error_old = error;
+      p->motorspeed_l_old = p->motorspeed_l;
+      p->motorspeed_r_old = p->motorspeed_r;
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+    }
+    else
+    {
+      p->motorspeed_l = 0;
+      p->motorspeed_r = 0;
+      p->finished = 1;
+      q->error_all = 0;
+      q->error_old = 0;
+    }
+    break;
+
+    // case mot_turn:
+    //   if (p->angle > 0)
+    //   {
+    //     // if ((p->right_pos-p->startpos) < 0.5*p->angle*p->w){
+    //     if ((p->angle + p->start_theta - q->theta) > 0)
+    //     {
+    //       p->motorspeed_l=-p->speedcmd;
+    //       p->motorspeed_r=p->speedcmd;
+    //       // exercise 3.6
+    //       // double dist = 0.5 * (p->angle - (q->theta - p->start_theta)) * p->w;
+    //       // p->motorspeed_l_old = p->motorspeed_l;
+    //       // p->motorspeed_r_old = p->motorspeed_r;
+    //       // p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
+    //       // p->motorspeed_l = -accelerate_speed(p->motorspeed_r_old, p->speedcmd - angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
+    //     }
+    //     else
+    //     {
+    //       p->motorspeed_l = 0;
+    //       p->motorspeed_r = 0;
+    //       p->finished = 1;
+    //     }
+    //   }
+    //   else
+    //   {
+    //     // if (p->left_pos-p->startpos < 0.5*fabs(p->angle)*p->w){
+    //     if (fabs(p->angle + p->start_theta - q->theta) > 0)
+    //     {
+    //       p->motorspeed_l=p->speedcmd;
+    //       p->motorspeed_r=-p->speedcmd;
+    //       // exercise 3.6
+    //       // double dist = 0.5 * (p->angle + p->start_theta - q->theta) * p->w;
+    //       // p->motorspeed_l_old = p->motorspeed_l;
+    //       // p->motorspeed_r_old = p->motorspeed_r;
+    //       // p->motorspeed_l = accelerate_speed(p->motorspeed_l_old, p->speedcmd, dist, 0.5);
+    //       // p->motorspeed_r = -p->motorspeed_l;
+    //     }
+    //     else
+    //     {
+    //       p->motorspeed_r = 0;
+    //       p->motorspeed_l = 0;
+    //       p->finished = 1;
+    //     }
+    //   }
+
+    //   break;
   }
 }
 
@@ -736,11 +852,25 @@ int turn(double angle, double speed, int time)
     return mot.finished;
 }
 
-int follow_black(double speed, int time)
+int follow_black_l(double speed, double dist, int time)
 {
   if (time == 0)
   {
-    mot.cmd = mot_follow_black;
+    mot.cmd = mot_follow_black_l;
+    mot.dist = dist;
+    mot.speedcmd = speed;
+    return 0;
+  }
+  else
+    return mot.finished;
+}
+
+int follow_black_r(double speed, double dist, int time)
+{
+  if (time == 0)
+  {
+    mot.cmd = mot_follow_black_r;
+    mot.dist = dist;
     mot.speedcmd = speed;
     return 0;
   }
@@ -761,6 +891,20 @@ void sm_update(smtype *p)
   }
 }
 
+int crossline(int i, int *data){
+  if(*data == 0){
+    if(--i > 0){
+      if(crossline(i, ++data)){
+        return 1;
+      }
+    }
+    else{
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w)
 {
   line->length = linesensor->length;
@@ -772,6 +916,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
   p = right;
   q = left;
   line->find_l = line->find_r = 0;
+  line->crossline = crossline(linesensor->length, linesensor->data);
   for (int i = 0; i < linesensor->length; i++)
   {
     if (*right == 0)
@@ -788,7 +933,7 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
     {
       p++;
     }
-    if (*right == 0)
+    if (*left == 0)
     {
       line->find_l = 1;
     }
@@ -810,7 +955,100 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
 
 void calibrate_linesensor(linesensortype *line, double w)
 {
-  double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length - 1.0);
+  double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length);
   line->left_pos = delta_sensor * (line->left) - middlepos;
   line->right_pos = delta_sensor * (line->right) - middlepos;
+}
+
+void square(smtype *p, double dist, double direction, double speed){
+  p->state = ms_init;
+  p->state_index = 0;
+  p->oldstate = -1;
+  p->states_set[1] = ms_fwd;
+  p->dist[1] = dist;
+  p->speed[1] = speed;
+  p->states_set[2] = ms_turn;
+  p->angle[2] = direction * -90.0 / 180 * M_PI;
+  p->speed[2] = speed;
+  p->states_set[3] = ms_fwd;
+  p->dist[3] = dist;
+  p->speed[3] = speed;
+  p->states_set[4] = ms_turn;
+  p->angle[4] = direction * -90.0 / 180 * M_PI;
+  p->speed[4] = speed;
+  p->states_set[5] = ms_fwd;
+  p->dist[5] = dist;
+  p->speed[5] = speed;
+  p->states_set[6] = ms_turn;
+  p->angle[6] = direction * -90.0 / 180 * M_PI;
+  p->speed[6] = speed;
+  p->states_set[7] = ms_fwd;
+  p->dist[7] = dist;
+  p->speed[7] = speed;
+  p->states_set[8] = ms_turn;
+  p->angle[8] = direction * -90.0 / 180 * M_PI;
+  p->speed[8] = speed;
+  p->states_set[9] = ms_end;
+}
+
+void mission_fwd(smtype *p, int i, double dist, double speed){
+  p->states_set[i] = ms_fwd;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+}
+
+void mission_turn(smtype *p, int i, double angle, double speed){
+  angle = angle / 180 * M_PI;
+  p->states_set[i] = ms_turn;
+  p->angle[i] = angle;
+  p->speed[i] = speed;
+}
+
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist){
+  p->states_set[i] = ms_follow_black_l;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+}
+
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist){
+  p->states_set[i] = ms_follow_black_r;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+}
+
+void mission_1(smtype *p){
+  int i = 1;
+  p->state = ms_init;
+  p->state_index = 0;
+  p->oldstate = -1;
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, -0.23, 0.3);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 0.5);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.5, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.5, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, -0.23, 0.3);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 0.5);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_r_line(p, i++, 0.3, 10);
+  p->states_set[i++] = ms_end;
 }
