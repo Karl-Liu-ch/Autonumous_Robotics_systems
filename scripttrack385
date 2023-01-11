@@ -1,0 +1,25 @@
+
+laser "scanpush cmd='zoneobst'"
+log "$l4" "$l5" "$time"
+%start to left gate
+fwd 0.6
+turn -45
+fwd 1
+turn 45
+fwd 0.4
+turn -90
+drive @v0.2:($irdistright<0.4)
+fwd 0.2
+stop
+wait 2
+%left gate to white line
+fwd -0.4
+turn 180
+fwd 1.6
+turn -90
+fwd 0.4
+wait 2
+%if ($l5== 128) "followwhite"
+%label "followwhite"
+followline "wm" @v0.2:($blacklinefound!=0)
+%drivendist3.13

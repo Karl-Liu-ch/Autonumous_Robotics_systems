@@ -1,0 +1,5 @@
+targethere
+fwd 0.5
+turn 90
+fwd -0.6
+followwall "r" 0.5:($drivendist>1)

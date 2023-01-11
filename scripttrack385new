@@ -1,0 +1,42 @@
+%start to left gate
+
+followline "bl" @v0.3:($irdistright<0.4)
+fwd 0.2 @v0.3
+wait 1
+%left gate to white line
+fwd -0.4
+turn 180
+fwd 1.5 
+turn -90
+fwd 0.4
+wait 2
+followline "wm" @v0.1:($blacklinefound!=0)
+%turn -30
+%whiteline finished going for the wall
+%followline "bm" @v0.1:($crossingblackline!=0)
+followline "bm" @v0.1:($drivendist>1.2)
+turn -90
+fwd 0.1
+followwall "r" 0.2:($drivendist>1.1)
+fwd 0.6
+turn -90
+fwd 0.8
+turn 180
+fwd 0.9
+turn 90
+fwd 0.2
+followwall "l" 0.2:($drivendist>1.1)
+fwd 0.6
+turn 90
+followline "bm" @v0.1:($drivendist>2.0)
+
+%fwd 0.3
+%turn -90
+%fwd 0.2
+%followwall "l" 0.2:($drivendist>1.1)
+%fwd 0.2
+%turn 90
+%fwd 0.5
+%turn 90
+%followwall "l" 0.2:($drivendist>1.3)
+%drivendist3.13

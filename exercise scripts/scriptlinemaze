@@ -3,7 +3,9 @@ fwd 0.8
 turn -90
 fwd 0.8
 turn -90
-drive @v0.2:($irdistright<0.4)
+drive @v0.2:($irdistright<0.4)|($irdistleft<0.4)
+stop
+wait 3
 fwd -0.3
 turn -90
 %going to gate2
@@ -16,8 +18,10 @@ turn -90
 followline "bm" @v0.2:($crossingblackline!=0)
 fwd 0.2
 turn 90
-followline "bm" @v0.2:($irdistright<0.4)
+followline "bm" @v0.2:($irdistright<0.3)|($irdistleft<0.3)
 %going to gate3
+stop
+wait 3
 fwd -0.4
 turn 90 
 followline "bm" @v0.2:($crossingblackline!=0)
@@ -26,4 +30,4 @@ turn 90
 followline "bm" @v0.2:($crossingblackline!=0)
 fwd 0.2
 turn -90
-drive @v0.2:($irdistright<0.4)
+followline "bm" @v0.1:($irdistright<0.4)|($irdistleft<0.4)
