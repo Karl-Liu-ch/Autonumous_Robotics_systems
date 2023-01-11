@@ -64,19 +64,32 @@ getoutputref(const char *sym_name, symTableElement *tab)
  * odometry
  */
 
-#define ED 0.9999
-#define WHEEL_DIAMETER_L 0.06522 * (1 + (1 - ED) / 2) /* m */
-#define WHEEL_DIAMETER_R 0.06522 * (1 - (1 - ED) / 2)
-#define WHEEL_SEPARATION 0.2596 /* m */
+// #define ED1 0.9919
+// #define ED2 0.9963
+// #define WHEEL_SEPARATION 0.2369 /* m */
+#define ED1 1
+#define ED2 1
+#define WHEEL_SEPARATION 0.26 /* m */
+#define WHEEL_DIAMETER_L 0.06522 * (1 + (1 - ED1) / 2) * (1 + (1 - ED2) / 2)/* m */
+#define WHEEL_DIAMETER_R 0.06522 * (1 - (1 - ED1) / 2) * (1 - (1 - ED2) / 2)
 #define DELTA_M_L (M_PI * WHEEL_DIAMETER_L / 2000)
 #define DELTA_M_R (M_PI * WHEEL_DIAMETER_R / 2000)
 #define DEFAULT_ROBOTPORT 24902
 #define EPSILON 0.01
 #define K 2.0
-#define KP 20.0
-#define KI 1.0
-#define KD 1.0
+#define KP 10.0
+#define KI 0.0
+#define KD 2.0
 #define ACCELERATION 1.0
+
+// #define BLACK_VALUE 59
+// #define WHITE_VALUE 95
+#define BLACK_VALUE 0
+#define WHITE_VALUE 255
+
+#define BLACK_LINE_FOUND_VALUE 0.1 /* If all the line sensors are below this value, then the robot must have crossed a black line */
+#define WHITE_LINE_FOUND_VALUE 0.9 /* If all the line sensors are above this value, then the robot must have crossed a white line */
+
 
 typedef struct
 {                          // input signals
@@ -102,7 +115,7 @@ void update_odo(odotype *p);
 typedef struct
 { // input
   int cmd;
-  int curcmd;
+  int curcmd, color;
   double speedcmd;
   double dist;
   double start_theta;
@@ -130,8 +143,9 @@ enum
 
 typedef struct
 {
-  int left, right, length, find_l, find_r, crossline;
-  double left_pos, right_pos, middle_pos;
+  int left, right, length, find_l, find_r, crossline, left_white, right_white, find_l_white, find_r_white, crossline_white;
+  double left_pos, right_pos, left_pos_white, right_pos_white;
+  double line_raw[8], line_calibrate[8];
 } linesensortype;
 
 typedef struct
@@ -149,8 +163,8 @@ typedef struct
 void update_motcon(motiontype *p, odotype *q, linesensortype *line);
 int fwd(double dist, double speed, int time);
 int turn(double angle, double speed, int time);
-int follow_black_l(double speed, double dist, int time);
-int follow_black_r(double speed, double dist, int time);
+int follow_black_l(double speed, double dist, int color, int time);
+int follow_black_r(double speed, double dist, int color, int time);
 
 void segfaulthandler(int sig)
 {
@@ -182,20 +196,20 @@ typedef struct
 {
   int state, oldstate;
   int states_set[1000];
-  double dist[1000], angle[1000], speed[1000];
+  double dist[1000], angle[1000], speed[1000], color[1000];
   int state_index;
   int time;
 } smtype;
 
 void sm_update(smtype *p);
-int crossline(int i, int *data);
+int crossline(int i, double color, double *data);
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w);
-void calibrate_linesensor(linesensortype *line, double w);
+void calPos_linesensor(linesensortype *line, double w);
 void square(smtype *p, double dist, double direction, double speed);
 void mission_fwd(smtype *p, int i, double dist, double speed);
 void mission_turn(smtype *p, int i, double angle, double speed);
-void mission_follow_black_l_line(smtype *p, int i, double speed, double dist);
-void mission_follow_black_r_line(smtype *p, int i, double speed, double dist);
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist, int color);
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist, int color);
 void mission_1(smtype *p);
 
 // SMR input/output data
@@ -372,7 +386,7 @@ int main(int argc, char **argv)
   printf("position: %f, %f\n", odo.left_pos, odo.right_pos);
   mot.w = odo.w;
   running = 1;
-  // square(&mission, 2.0, 1.0, 0.3);
+  // square(&mission, 1.0, 1.0, 0.3);
   mission_1(&mission);
   while (running)
   {
@@ -434,7 +448,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_l:
-      if (follow_black_l(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
+      if (follow_black_l(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time))
       {
         // mission.state = ms_end;
         mission.state_index++;
@@ -443,7 +457,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_r:
-      if (follow_black_r(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.time))
+      if (follow_black_r(mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time))
       {
         // mission.state = ms_end;
         mission.state_index++;
@@ -487,12 +501,20 @@ int main(int argc, char **argv)
       {
         fprintf(fp, "%d ", linesensor->data[i]);
       }
+      for (int i = 0; i < linesensor->length; i++)
+      {
+        fprintf(fp, "%f ", line.line_calibrate[i]);
+      }
       fprintf(fp, "%d ", line.left);
       fprintf(fp, "%d ", line.right);
       fprintf(fp, "%f ", line.left_pos);
       fprintf(fp, "%f ", line.right_pos);
       fprintf(fp, "%d ", line.find_l);
-      fprintf(fp, "%d ", line.crossline);
+      fprintf(fp, "%d ", line.left_white);
+      fprintf(fp, "%d ", line.right_white);
+      fprintf(fp, "%f ", line.left_pos_white);
+      fprintf(fp, "%f ", line.right_pos_white);
+      fprintf(fp, "%d ", line.find_l_white);
       fprintf(fp, "\n");
       fclose(fp);
     }
@@ -503,12 +525,20 @@ int main(int argc, char **argv)
       {
         fprintf(fp, "%d ", linesensor->data[i]);
       }
+      for (int i = 0; i < linesensor->length; i++)
+      {
+        fprintf(fp, "%f ", line.line_calibrate[i]);
+      }
       fprintf(fp, "%d ", line.left);
       fprintf(fp, "%d ", line.right);
       fprintf(fp, "%f ", line.left_pos);
       fprintf(fp, "%f ", line.right_pos);
       fprintf(fp, "%d ", line.find_l);
-      fprintf(fp, "%d ", line.crossline);
+      fprintf(fp, "%d ", line.left_white);
+      fprintf(fp, "%d ", line.right_white);
+      fprintf(fp, "%f ", line.left_pos_white);
+      fprintf(fp, "%f ", line.right_pos_white);
+      fprintf(fp, "%d ", line.find_l_white);
       fprintf(fp, "\n");
       fclose(fp);
     }
@@ -733,9 +763,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
 
   case mot_follow_black_l:
-    if (line->find_l && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if ((line->find_l || line->find_l_white) && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
-      double error = line->left_pos * fabs(p->speedcmd);
+      double error;
+      if(line->find_l){
+        error = line->left_pos * fabs(p->speedcmd);
+      }
+      else{
+        error = line->left_pos_white * fabs(p->speedcmd);
+      }
       double error_black_D = error - q->error_old;
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
@@ -756,9 +792,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
     break;
 
   case mot_follow_black_r:
-    if (line->find_r && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if ((line->find_r || line->find_r_white) && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
-      double error = line->right_pos * fabs(p->speedcmd);
+      double error;
+      if(line->find_r){
+        error = line->right_pos * fabs(p->speedcmd);
+      }
+      else{
+        error = line->right_pos_white * fabs(p->speedcmd);
+      }
       double error_black_D = error - q->error_old;
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
@@ -777,52 +819,6 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
       q->error_old = 0;
     }
     break;
-
-    // case mot_turn:
-    //   if (p->angle > 0)
-    //   {
-    //     // if ((p->right_pos-p->startpos) < 0.5*p->angle*p->w){
-    //     if ((p->angle + p->start_theta - q->theta) > 0)
-    //     {
-    //       p->motorspeed_l=-p->speedcmd;
-    //       p->motorspeed_r=p->speedcmd;
-    //       // exercise 3.6
-    //       // double dist = 0.5 * (p->angle - (q->theta - p->start_theta)) * p->w;
-    //       // p->motorspeed_l_old = p->motorspeed_l;
-    //       // p->motorspeed_r_old = p->motorspeed_r;
-    //       // p->motorspeed_r = accelerate_speed(p->motorspeed_r_old, p->speedcmd + angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
-    //       // p->motorspeed_l = -accelerate_speed(p->motorspeed_r_old, p->speedcmd - angular_control(p->start_theta + p->angle, q->theta, K, p->w), dist, 0.5);
-    //     }
-    //     else
-    //     {
-    //       p->motorspeed_l = 0;
-    //       p->motorspeed_r = 0;
-    //       p->finished = 1;
-    //     }
-    //   }
-    //   else
-    //   {
-    //     // if (p->left_pos-p->startpos < 0.5*fabs(p->angle)*p->w){
-    //     if (fabs(p->angle + p->start_theta - q->theta) > 0)
-    //     {
-    //       p->motorspeed_l=p->speedcmd;
-    //       p->motorspeed_r=-p->speedcmd;
-    //       // exercise 3.6
-    //       // double dist = 0.5 * (p->angle + p->start_theta - q->theta) * p->w;
-    //       // p->motorspeed_l_old = p->motorspeed_l;
-    //       // p->motorspeed_r_old = p->motorspeed_r;
-    //       // p->motorspeed_l = accelerate_speed(p->motorspeed_l_old, p->speedcmd, dist, 0.5);
-    //       // p->motorspeed_r = -p->motorspeed_l;
-    //     }
-    //     else
-    //     {
-    //       p->motorspeed_r = 0;
-    //       p->motorspeed_l = 0;
-    //       p->finished = 1;
-    //     }
-    //   }
-
-    //   break;
   }
 }
 
@@ -852,26 +848,28 @@ int turn(double angle, double speed, int time)
     return mot.finished;
 }
 
-int follow_black_l(double speed, double dist, int time)
+int follow_black_l(double speed, double dist, int color, int time)
 {
   if (time == 0)
   {
     mot.cmd = mot_follow_black_l;
     mot.dist = dist;
     mot.speedcmd = speed;
+    mot.color = color;
     return 0;
   }
   else
     return mot.finished;
 }
 
-int follow_black_r(double speed, double dist, int time)
+int follow_black_r(double speed, double dist, int color, int time)
 {
   if (time == 0)
   {
     mot.cmd = mot_follow_black_r;
     mot.dist = dist;
     mot.speedcmd = speed;
+    mot.color = color;
     return 0;
   }
   else
@@ -891,10 +889,10 @@ void sm_update(smtype *p)
   }
 }
 
-int crossline(int i, int *data){
-  if(*data == 0){
+int crossline(int i, double color, double *data){
+  if(*data == color){
     if(--i > 0){
-      if(crossline(i, ++data)){
+      if(crossline(i, color, ++data)){
         return 1;
       }
     }
@@ -905,59 +903,100 @@ int crossline(int i, int *data){
   return 0;
 }
 
+void calibrate_linesensor(symTableElement *linesensor, linesensortype *line){
+  for(int i = 0; i < linesensor->length; i++){
+    line->line_raw[i] = linesensor->data[i];
+  }
+  for(int i = 0; i < linesensor->length; i++){
+    line->line_calibrate[i] = (line->line_raw[i] - BLACK_VALUE) / (WHITE_VALUE - BLACK_VALUE);
+    if(line->line_calibrate[i] < BLACK_LINE_FOUND_VALUE){
+      line->line_calibrate[i] = 0;
+    }
+    else if(line->line_calibrate[i] > WHITE_LINE_FOUND_VALUE){
+      line->line_calibrate[i] = 1;
+    }
+  }
+}
+
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w)
 {
   line->length = linesensor->length;
-  int *right = &linesensor->data[0];
-  int *left = &linesensor->data[linesensor->length - 1];
-  int *middle = &linesensor->data[0];
-  int *p, *q;
-  int right_pos = 0, left_pos = linesensor->length - 1;
-  p = right;
-  q = left;
+  calibrate_linesensor(linesensor, line);
+  double *right = &line->line_calibrate[0];
+  double *left = &line->line_calibrate[linesensor->length - 1];
+  int right_pos = 0, left_pos = linesensor->length - 1, right_pos_white = 0, left_pos_white = linesensor->length - 1;
   line->find_l = line->find_r = 0;
-  line->crossline = crossline(linesensor->length, linesensor->data);
+  line->crossline = crossline(linesensor->length, 0.0, line->line_calibrate);
+  line->find_l_white = line->find_r_white = 0;
+  line->crossline_white = crossline(linesensor->length, 1.0, line->line_calibrate);
   for (int i = 0; i < linesensor->length; i++)
   {
-    if (*right == 0)
+    if (*right == 0.0)
     {
       line->find_r = 1;
-    }
-    if (*p < *right)
-    {
-      right = p;
       right_pos = i;
-      line->find_r = 1;
+      break;
     }
     else
     {
-      p++;
+      right++;
     }
-    if (*left == 0)
+  }
+  for (int i = 0; i < linesensor->length; i++)
+  {
+    if (*left == 0.0)
     {
       line->find_l = 1;
-    }
-    if (*q < *left)
-    {
-      left = q;
       left_pos = linesensor->length - i - 1;
-      line->find_l = 1;
+      break;
     }
     else
     {
-      q--;
+      left--;
+    }
+  }
+  right = &line->line_calibrate[0];
+  left = &line->line_calibrate[linesensor->length - 1];
+  for (int i = 0; i < linesensor->length; i++)
+  {
+    if (*right == 1.0)
+    {
+      line->find_r_white = 1;
+      right_pos_white = i;
+      break;
+    }
+    else
+    {
+      right++;
+    }
+  }
+  for (int i = 0; i < linesensor->length; i++)
+  {
+    if (*left == 1.0)
+    {
+      line->find_l_white = 1;
+      left_pos_white = linesensor->length - i - 1;
+      break;
+    }
+    else
+    {
+      left--;
     }
   }
   line->left = left_pos;
   line->right = right_pos;
-  calibrate_linesensor(line, w);
+  line->left_white = left_pos_white;
+  line->right_white = right_pos_white;
+  calPos_linesensor(line, w);
 }
 
-void calibrate_linesensor(linesensortype *line, double w)
+void calPos_linesensor(linesensortype *line, double w)
 {
   double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length);
   line->left_pos = delta_sensor * (line->left) - middlepos;
   line->right_pos = delta_sensor * (line->right) - middlepos;
+  line->left_pos_white = delta_sensor * (line->left_white) - middlepos;
+  line->right_pos_white = delta_sensor * (line->right_white) - middlepos;
 }
 
 void square(smtype *p, double dist, double direction, double speed){
@@ -1004,16 +1043,18 @@ void mission_turn(smtype *p, int i, double angle, double speed){
   p->speed[i] = speed;
 }
 
-void mission_follow_black_l_line(smtype *p, int i, double speed, double dist){
+void mission_follow_black_l_line(smtype *p, int i, double speed, double dist, int color){
   p->states_set[i] = ms_follow_black_l;
   p->dist[i] = dist;
   p->speed[i] = speed;
+  p->color[i] = color;
 }
 
-void mission_follow_black_r_line(smtype *p, int i, double speed, double dist){
+void mission_follow_black_r_line(smtype *p, int i, double speed, double dist, int color){
   p->states_set[i] = ms_follow_black_r;
   p->dist[i] = dist;
   p->speed[i] = speed;
+  p->color[i] = color;
 }
 
 void mission_1(smtype *p){
@@ -1021,34 +1062,30 @@ void mission_1(smtype *p){
   p->state = ms_init;
   p->state_index = 0;
   p->oldstate = -1;
-  mission_follow_black_l_line(p, i++, 0.3, 10);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, -0.23, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, -1.0, 0.3);
   mission_turn(p, i++, 180.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 0.5);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, 0.5, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, 0.5, 0.3);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, -0.23, 0.3);
-  mission_turn(p, i++, 180.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 0.5);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   mission_fwd(p, i++, 0.23, 0.3);
   mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_r_line(p, i++, 0.3, 10);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.3, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+
+  // mission_fwd(p, i++, 2.2, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 0.4, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_follow_black_r_line(p, i++, 0.3, 10, 1);
   p->states_set[i++] = ms_end;
 }
