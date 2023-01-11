@@ -1,0 +1,10 @@
+%simconfigtrack386.xml
+eval $irdistleft
+ignoreobstacles
+turnr 2 90
+fwd 0.3
+fwd -0.3
+turn 90
+ignoreobstacles
+fwd 0.3
+

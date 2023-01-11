@@ -1,0 +1,93 @@
+%task measurement
+laser "scanpush cmd='zoneobst'"
+fwd 0.6
+turn -90
+wait 2
+label "task1"
+n=100
+laser "scanpush cmd='zoneobst'"
+wait 3
+laser "scanpush cmd='zoneobst'"
+dist = $l4
+eval dist
+wait 3
+turn 45
+
+%task pushbox
+
+ignoreobstacles
+followline "bl" @v0.3:($crossingblackline!=0)
+%followline "bl" @v0.3:($irdistright<0.4)
+ignoreobstacles
+fwd 0.3 @v0.3
+wait 1
+fwd -1.2
+
+turn -90
+fwd 0.65
+turn 90
+ignoreobstacles
+followline "bl" @v0.3:($crossingblackline!=0)
+fwd 0.2
+turn 90
+ignoreobstacles
+followline "bl" @v0.1:($crossingblackline!=0)
+%going to gate on the loose
+ignoreobstacles
+followline "bl" @v0.1:($crossingblackline!=0)
+ignoreobstacles
+fwd 0.5 @v0.2
+followline "bl" @v0.1:($crossingblackline!=0)
+fwd 0.2
+followline "bm" @v0.05:($irdistleft<0.5)
+ignoreobstacles
+fwd 0.45 @v0.2
+turn 90
+fwd 0.8
+turn 180
+fwd 0.8
+turn 90
+%going to wall
+followline "bm" @v0.1:($crossingblackline!=0)
+turn 90
+fwd 0.2
+followwall "l" 0.2 @v0.2:($drivendist>1.1)
+fwd 0.48
+turn 90
+fwd 0.8
+turn 90
+fwd 0.2
+followwall "l" 0.2 @v0.2:($drivendist>1.1)
+fwd 0.50
+turn 90
+%going to whiteline
+followline "bl" @v0.1:($crossingblackline!=0)
+fwd 0.6
+turn 45
+followline "wm" @v0.1:($blacklinefound!=0)
+fwd 0.2 @v0.2
+turn -90
+%going to whiteline
+%boxgate
+followline "bm" @v0.3:($crossingblackline!=0)
+fwd 0.2
+turn -90
+%followwall "l" 0.05 @v0.1:($irdistleft>0.4)
+%followwall "l" 0.05 @v0.05:($odoth<0.173)|($odoth>-0.173)
+n=3
+label "boxgate"
+drive @v0.2:($irdistleft>0.4)
+fwd 0.4
+turn 90
+fwd 0.4
+n=n-1
+if(n!=0) "boxgate"
+
+ignoreobstacles
+fwd 1.1
+turn 90
+ignoreobstacles
+fwd 0.5
+turn 90
+ignoreobstacles
+fwd 0.6

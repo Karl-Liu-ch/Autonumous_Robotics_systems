@@ -1,0 +1,49 @@
+%boxgate
+status = $motionstatus
+eval status
+fwd 2.3 @v2
+turn 90
+followline "bm" @v0.3:($crossingblackline!=0)
+fwd 0.2
+turn -90
+%followwall "l" 0.05 @v0.1:($irdistleft>0.4)
+%followwall "l" 0.05 @v0.05:($odoth<0.173)|($odoth>-0.173)
+n=3
+label "boxgate"
+drive @v0.2:($irdistleft>0.4)
+fwd 0.4
+turn 90
+fwd 0.4
+n=n-1
+if(n!=0) "boxgate"
+
+ignoreobstacles
+fwd 0.8
+turn 90
+ignoreobstacles
+fwd 0.5
+turn 90
+
+drive :($irdistfrontmiddle<0.25)
+
+ignoreobstacles
+fwd 0.3
+turnr 0.5 90
+%fwd 0.6
+%fwd -0.3
+turn 90
+ignoreobstacles
+fwd 0.5
+
+followwall "l" 0.1 @v0.1:($odoth<0.173)|($odoth>-0.173)
+
+%followwall "l" 0.05 @v0.1:($irdistfrontleft<0.2)
+ignoreobstacles
+
+%drive :($irdistfrontleft<0.01)
+ignoreobstacles
+turnr 0.5 90
+fwd 0.6
+fwd -0.3
+turn 90
+fwd 0.3

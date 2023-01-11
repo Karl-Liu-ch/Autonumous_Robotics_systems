@@ -1,0 +1,54 @@
+state = 0
+log "$irdistleft" "$irdistright" "state"
+fwd 4.8 @v2
+state = 1
+turn -90
+state = 2
+fwd 0.8
+state = 3
+turn 180
+followline "bm" @v0.1:($crossingblackline!=0)
+turn 90
+fwd 0.2
+followwall "l" 0.2 @v0.2:($drivendist>1.1)
+fwd 0.48
+turn 90
+fwd 0.8
+turn 90
+fwd 0.2
+followwall "l" 0.2 @v0.2:($drivendist>1.1)
+fwd 0.50
+turn 90
+followline "bl" @v0.1:($crossingblackline!=0)
+fwd 0.6
+turn 45
+followline "wm" @v0.1:($blacklinefound!=0)
+fwd 0.2 @v0.2
+turn -90
+
+wait 100
+%followline "bm" @v0.05:($crossingblackline!=0)|($irdistright<0.4)
+followline "bm" @v0.3:($crossingblackline!=0)
+stop
+wait 1
+followline "bm" @v0.3:($crossingblackline!=0)
+wait 1
+followline "bm" @v0.3:($crossingblackline!=0)
+fwd 0.2
+state = 4
+fwd 0.5 @v0.2
+turn -90
+fwd 0.8
+turn 180
+fwd 0.8
+turn -90
+followline "bm" @v0.2:($irdistfrontmiddle<0.5)
+turn 90
+%followwall "r" 0.4 @v0.1 :($drivendist>0.3)
+drive @v0.2:($irdistright>0.5)
+stop
+fwd 0.6
+turn -90
+fwd 0.8
+turn-90
+drive @v0.2:($irdistfrontmiddle<0.2)
