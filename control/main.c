@@ -257,7 +257,7 @@ int main(int argc, char **argv)
   mot.w = odo.w;
   running = 1;
   // square(&mission, 1.0, 1.0, 0.3);
-  mission_1(&mission);
+  mission_1(&mission, &odo);
   while (running)
   {
     if (lmssrv.config && lmssrv.status && lmssrv.connected)
@@ -383,7 +383,7 @@ int main(int argc, char **argv)
       }
       for (int i = 0; i < linesensor->length; i++)
       {
-        fprintf(fp, "%f ", line.line_calibrate[i]);
+        fprintf(fp, "%f ", line.line_calibrate_raw[i]);
       }
       fprintf(fp, "%d ", line.left);
       fprintf(fp, "%d ", line.right);
@@ -395,6 +395,7 @@ int main(int argc, char **argv)
       fprintf(fp, "%f ", line.left_pos_white);
       fprintf(fp, "%f ", line.right_pos_white);
       fprintf(fp, "%d ", line.find_l_white);
+      fprintf(fp, "%f ", line.max - line.min);
       fprintf(fp, "\n");
       fclose(fp);
     }
@@ -407,7 +408,7 @@ int main(int argc, char **argv)
       }
       for (int i = 0; i < linesensor->length; i++)
       {
-        fprintf(fp, "%f ", line.line_calibrate[i]);
+        fprintf(fp, "%f ", line.line_calibrate_raw[i]);
       }
       fprintf(fp, "%d ", line.left);
       fprintf(fp, "%d ", line.right);
@@ -419,6 +420,7 @@ int main(int argc, char **argv)
       fprintf(fp, "%f ", line.left_pos_white);
       fprintf(fp, "%f ", line.right_pos_white);
       fprintf(fp, "%d ", line.find_l_white);
+      fprintf(fp, "%f ", line.max - line.min);
       fprintf(fp, "\n");
       fclose(fp);
     }

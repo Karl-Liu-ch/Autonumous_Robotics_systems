@@ -71,9 +71,9 @@ typedef struct
 
 typedef struct
 {
-  int left, right, length, find_l, find_r, crossline, left_white, right_white, find_l_white, find_r_white, crossline_white;
-  double left_pos, right_pos, left_pos_white, right_pos_white;
-  double line_raw[8], line_calibrate[8];
+  int left, right, length, find_l, find_r, crossline, left_white, right_white, find_l_white, find_r_white, crossline_white, maxIndex, minIndex;
+  double left_pos, right_pos, left_pos_white, right_pos_white, max, min;
+  double line_raw[8], line_calibrate[8], line_calibrate_raw[8];
 } linesensortype;
 
 typedef struct
@@ -118,4 +118,4 @@ void mission_follow_black_l_line(smtype *p, int i, double speed, double dist, do
 void mission_follow_black_l_line_gate(smtype *p, int i, double speed, double dist, double color, double gate_threshold);
 void mission_follow_black_r_line(smtype *p, int i, double speed, double dist, double color);
 void mission_wait_1s(smtype *p, int i);
-void mission_1(smtype *p);
+void mission_1(smtype *p, odotype *q);

@@ -220,7 +220,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     if (ir->value[0] < 0.2 && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
       double error;
-      error = 2 * (ir->value[0] - p->dist_fromWall) * fabs(p->speedcmd);
+      error = (ir->value[0] - p->dist_fromWall) * fabs(p->speedcmd);
       double error_black_D = error - q->error_old;
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
@@ -338,17 +338,33 @@ int crossline(int i, double color, double *data){
 }
 
 void calibrate_linesensor(symTableElement *linesensor, linesensortype *line){
+  line->find_l_white = line->find_r_white = 0;
   for(int i = 0; i < linesensor->length; i++){
     line->line_raw[i] = linesensor->data[i];
   }
   for(int i = 0; i < linesensor->length; i++){
-    line->line_calibrate[i] = (line->line_raw[i] - BLACK_VALUE) / (WHITE_VALUE - BLACK_VALUE);
+    line->line_calibrate[i]  = line->line_calibrate_raw[i] = (line->line_raw[i] - BLACK_VALUE(i)) / (WHITE_VALUE(i) - BLACK_VALUE(i));
     if(line->line_calibrate[i] < BLACK_LINE_FOUND_VALUE){
       line->line_calibrate[i] = 0;
     }
     else if(line->line_calibrate[i] > WHITE_LINE_FOUND_VALUE){
       line->line_calibrate[i] = 1;
     }
+  }
+  line->max = 0.0;
+  line->min = 1.0;
+  for(int i = 0; i < linesensor->length; i++){
+    if(line->line_calibrate_raw[i] > line->max){
+      line->max = line->line_calibrate_raw[i];
+      line->maxIndex = i;
+    }
+    if(line->line_calibrate_raw[i] < line->min){
+      line->min = line->line_calibrate_raw[i];
+      line->minIndex = i;
+    }
+  }
+  if(line->max - line->min >= 0.04){
+    line->find_l_white = line->find_r_white = 1;
   }
 }
 
@@ -361,7 +377,6 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
   int right_pos = 0, left_pos = linesensor->length - 1, right_pos_white = 0, left_pos_white = linesensor->length - 1;
   line->find_l = line->find_r = 0;
   line->crossline = crossline(linesensor->length, 0.0, line->line_calibrate);
-  line->find_l_white = line->find_r_white = 0;
   line->crossline_white = crossline(linesensor->length, 1.0, line->line_calibrate);
   for (int i = 0; i < linesensor->length; i++)
   {
@@ -419,8 +434,8 @@ void update_linesensor(symTableElement *linesensor, linesensortype *line, double
   }
   line->left = left_pos;
   line->right = right_pos;
-  line->left_white = left_pos_white;
-  line->right_white = right_pos_white;
+  // line->left_white = left_pos_white;
+  // line->right_white = right_pos_white;
   calPos_linesensor(line, w);
 }
 
@@ -429,8 +444,12 @@ void calPos_linesensor(linesensortype *line, double w)
   double leftpos = w, rightpos = 0.0, middlepos = w / 2.0, delta_sensor = w / (line->length);
   line->left_pos = delta_sensor * (line->left) - middlepos;
   line->right_pos = delta_sensor * (line->right) - middlepos;
-  line->left_pos_white = delta_sensor * (line->left_white) - middlepos;
-  line->right_pos_white = delta_sensor * (line->right_white) - middlepos;
+  // line->left_pos_white = delta_sensor * (line->left_white) - middlepos;
+  // line->right_pos_white = delta_sensor * (line->right_white) - middlepos;
+  // line->left_pos = delta_sensor * (line->minIndex) - middlepos;
+  // line->right_pos = delta_sensor * (line->minIndex) - middlepos;
+  line->left_pos_white = delta_sensor * (line->maxIndex) - middlepos;
+  line->right_pos_white = delta_sensor * (line->maxIndex) - middlepos;
 }
 
 void updateIRSensor(symTableElement *irsensor, irsensortype *p) {
@@ -530,37 +549,48 @@ void mission_wait_1s(smtype *p, int i){
   p->states_set[i] = ms_wait_1s;
 }
 
-void mission_1(smtype *p){
+void mission_1(smtype *p, odotype *q){
   int i = 1;
   p->state = ms_init;
   p->state_index = 0;
   p->oldstate = -1;
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0); //push paper box
-  mission_fwd(p, i++, -1.0, 0.3);
-  mission_turn(p, i++, 180.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);  //go backward
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0); //go through the first gate
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
-  mission_fwd(p, i++, 0.45, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_fwd(p, i++, 0.5, 0.3);
-  mission_wait_1s(p, i++);
+  mission_follow_black_l_line(p, i++, 0.1, 10, 0);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0); //push paper box
   mission_fwd(p, i++, -0.5, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
-  mission_follow_black_l_line(p, i++, 0.2, 10, 0);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.1, 10, 0);  //go backward
+  mission_fwd(p, i++, 0.23, 0.3);
   mission_turn(p, i++, 90.0, 0.3);
-  mission_fwd(p, i++, 0.3, 0.3);
-  mission_follow_wall_l(p, i++, 0.3, 10, 0.15);
+  mission_follow_black_l_line(p, i++, 0.1, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.1, 10, 0); //go through the first gate
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
+  // mission_fwd(p, i++, 0.45, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 0.5, 0.3);
+  // mission_wait_1s(p, i++);
+  // mission_fwd(p, i++, -0.5, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 0.3, 0.3);
+  // mission_follow_wall_l(p, i++, 0.3, 10, 0.15);
+  // mission_fwd(p, i++, 0.35, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 0.6, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_follow_wall_l(p, i++, 0.3, 10, 0.15);
+  // mission_fwd(p, i++, 0.35, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 0.6, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   p->states_set[i++] = ms_end;
 }
