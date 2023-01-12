@@ -637,7 +637,6 @@ void update_odo(odotype *p)
   p->y += delta_U * sin(p->theta);
 }
 
-// exercise 3.5
 double accelerate_speed(double old_speed, double desired_speed, double dist, double accelerate)
 {
   double vmax = old_speed + accelerate * 10;
@@ -657,15 +656,6 @@ double angular_control(double desired_theta, double current_theta, double k, dou
   double turn_angle_speed = k * (desired_theta - current_theta);
   return turn_angle_speed * w * 0.5 + EPSILON;
 }
-
-// exercise 3.4
-// double accelerate_speed(double old_speed, double desired_speed, double dist, double accelerate){
-//   double vmax = old_speed + accelerate * 10;
-//   if(vmax > desired_speed){
-//     vmax = desired_speed;
-//   }
-//   return vmax;
-// }
 
 void update_motcon(motiontype *p, odotype *q, linesensortype *line)
 {
