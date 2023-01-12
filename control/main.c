@@ -328,6 +328,14 @@ int main(int argc, char **argv)
       }
       break;
 
+    case ms_follow_wall_l:
+      if (follow_wall_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.dist_fromWall[mission.state_index], mission.time))
+      {
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
     case ms_wait_1s:;
       static int wait_timer;
       if (mission.time == 0)
@@ -345,7 +353,7 @@ int main(int argc, char **argv)
 
     mot.left_pos = odo.left_pos;
     mot.right_pos = odo.right_pos;
-    update_motcon(&mot, &odo, &line);
+    update_motcon(&mot, &odo, &line, &ir);
     speedl->data[0] = 100 * mot.motorspeed_l;
     speedl->updated = 1;
     speedr->data[0] = 100 * mot.motorspeed_r;

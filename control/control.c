@@ -66,7 +66,7 @@ double angular_control(double desired_theta, double current_theta, double k, dou
   return turn_angle_speed * w * 0.5 + EPSILON;
 }
 
-void update_motcon(motiontype *p, odotype *q, linesensortype *line)
+void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype *ir)
 {
 
   if (p->cmd != 0)
@@ -85,13 +85,10 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
       break;
 
     case mot_follow_black_l:
-      p->startpos = (p->left_pos + p->right_pos) / 2;
-      p->curcmd = mot_follow_black_l;
-      break;
-
     case mot_follow_black_r:
+    case mot_follow_wall_l:
       p->startpos = (p->left_pos + p->right_pos) / 2;
-      p->curcmd = mot_follow_black_r;
+      p->curcmd = p->cmd;
       break;
 
     case mot_turn:
@@ -218,6 +215,30 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line)
       q->error_old = 0;
     }
     break;
+
+  case mot_follow_wall_l:
+    if (ir->value[0] < 0.2 && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    {
+      double error;
+      error = 2 * (ir->value[0] - p->dist_fromWall) * fabs(p->speedcmd);
+      double error_black_D = error - q->error_old;
+      double direction = fabs(p->speedcmd) / p->speedcmd;
+      q->error_all += error;
+      q->error_old = error;
+      p->motorspeed_l_old = p->motorspeed_l;
+      p->motorspeed_r_old = p->motorspeed_r;
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+    }
+    else
+    {
+      p->motorspeed_l = 0;
+      p->motorspeed_r = 0;
+      p->finished = 1;
+      q->error_all = 0;
+      q->error_old = 0;
+    }
+    break;
   }
 }
 
@@ -247,7 +268,7 @@ int turn(motiontype *mot, double angle, double speed, int time)
     return mot->finished;
 }
 
-int follow_black_l(motiontype *mot, double speed, double dist, int color, int time)
+int follow_black_l(motiontype *mot, double speed, double dist, double color, int time)
 {
   if (time == 0)
   {
@@ -261,7 +282,7 @@ int follow_black_l(motiontype *mot, double speed, double dist, int color, int ti
     return mot->finished;
 }
 
-int follow_black_r(motiontype *mot, double speed, double dist, int color, int time)
+int follow_black_r(motiontype *mot, double speed, double dist, double color, int time)
 {
   if (time == 0)
   {
@@ -269,6 +290,20 @@ int follow_black_r(motiontype *mot, double speed, double dist, int color, int ti
     mot->dist = dist;
     mot->speedcmd = speed;
     mot->color = color;
+    return 0;
+  }
+  else
+    return mot->finished;
+}
+
+int follow_wall_l(motiontype *mot, double speed, double dist, double dist_fromWall, int time)
+{
+  if (time == 0)
+  {
+    mot->cmd = mot_follow_wall_l;
+    mot->dist = dist;
+    mot->speedcmd = speed;
+    mot->dist_fromWall = dist_fromWall;
     return 0;
   }
   else
@@ -484,6 +519,13 @@ void mission_follow_black_r_line(smtype *p, int i, double speed, double dist, do
   p->color[i] = color;
 }
 
+void mission_follow_wall_l(smtype *p, int i, double speed, double dist, double dist_fromWall){
+  p->states_set[i] = ms_follow_wall_l;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->dist_fromWall[i] = dist_fromWall;
+}
+
 void mission_wait_1s(smtype *p, int i){
   p->states_set[i] = ms_wait_1s;
 }
@@ -505,13 +547,20 @@ void mission_1(smtype *p){
   mission_fwd(p, i++, 0.23, 0.3);
   mission_turn(p, i++, 90.0, 0.3);
   mission_follow_black_l_line(p, i++, 0.3, 10, 0); //go through the first gate
-  mission_wait_1s(p, i++);
   mission_fwd(p, i++, 0.23, 0.3);
   mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   mission_fwd(p, i++, 0.23, 0.3);
   mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
-//   mission_fwd(p, i++, 0.3, 0.3);
-//   mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-//   mission_fwd(p, i++, 0.23, 0.3);
+  mission_fwd(p, i++, 0.45, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_fwd(p, i++, 0.5, 0.3);
+  mission_wait_1s(p, i++);
+  mission_fwd(p, i++, -0.5, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line_gate(p, i++, 0.3, 10, 0, 0.25);
+  mission_follow_black_l_line(p, i++, 0.2, 10, 0);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_fwd(p, i++, 0.3, 0.3);
+  mission_follow_wall_l(p, i++, 0.3, 10, 0.15);
   p->states_set[i++] = ms_end;
 }

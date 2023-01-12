@@ -14,6 +14,7 @@ enum
   ms_follow_black_l,
   ms_follow_black_l_gate,
   ms_follow_black_r,
+  ms_follow_wall_l,
   ms_wait_1s,
   ms_end
 };
@@ -24,6 +25,7 @@ enum
   mot_turn,
   mot_follow_black_l,
   mot_follow_black_r,
+  mot_follow_wall_l,
 };
 typedef struct
 {                          // input signals
@@ -61,6 +63,7 @@ typedef struct
   double motorspeed_l, motorspeed_r;
   double motorspeed_l_old, motorspeed_r_old;
   double motoraccelerate_l, motoraccelerate_r;
+  double dist_fromWall;
   int finished;
   // internal variables
   double startpos;
@@ -83,7 +86,7 @@ typedef struct
 {
   int state, oldstate;
   int states_set[1000];
-  double dist[1000], angle[1000], speed[1000], color[1000], gate_threshold[1000];
+  double dist[1000], angle[1000], speed[1000], color[1000], gate_threshold[1000], dist_fromWall[1000];
   int state_index;
   int time;
 } smtype;
@@ -98,11 +101,12 @@ typedef struct {
 
 void updateIRSensor(symTableElement *irsensor, irsensortype *p);
 void printIRSensor(irsensortype *p);
-void update_motcon(motiontype *p, odotype *q, linesensortype *line);
+void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype *ir);
 int fwd(motiontype *mot, double dist, double speed, int time);
 int turn(motiontype *mot, double angle, double speed, int time);
-int follow_black_l(motiontype *mot, double speed, double dist, int color, int time);
-int follow_black_r(motiontype *mot, double speed, double dist, int color, int time);
+int follow_black_l(motiontype *mot, double speed, double dist, double color, int time);
+int follow_black_r(motiontype *mot, double speed, double dist, double color, int time);
+int follow_wall_l(motiontype *mot, double speed, double dist, double dist_fromWall, int time);
 void sm_update(smtype *p);
 int crossline(int i, double color, double *data);
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w);
