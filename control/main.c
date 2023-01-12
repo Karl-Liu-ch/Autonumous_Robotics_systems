@@ -94,6 +94,7 @@ smtype mission;
 motiontype mot;
 linesensortype line;
 irsensortype ir;
+lasersensortype laser;
 
 int logcount = 0;
 
@@ -231,8 +232,8 @@ int main(int argc, char **argv)
     {
       xmllaser = xml_in_init(4096, 32);
       printf(" laserserver xml initialized \n");
-      //  len=sprintf(buf,"scanpush cmd='zoneobst'\n");
-      len = sprintf(buf, "push  t=0.2 cmd='mrcobst width=0.4'\n");
+      len=sprintf(buf,"scanpush cmd='zoneobst'\n");
+      // len = sprintf(buf, "push  t=0.2 cmd='mrcobst width=0.4'\n");
       send(lmssrv.sockfd, buf, len, 0);
     }
   }
@@ -297,6 +298,39 @@ int main(int argc, char **argv)
       }
       break;
 
+    case ms_fwd_black_stop:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || line.find_l || line.find_r){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_fwd_Nonblack_stop:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || (!(line.find_l)) || (!(line.find_r))){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+        FILE *fp;
+        fp = fopen("distance.dat", "w");
+        for (int i = 0; i < 9; i++)
+        {
+          fprintf(fp, "%f ", laser.value[i]);
+        }
+        fprintf(fp, "%f ", laser.min);
+        fprintf(fp, "\n");
+        fclose(fp);
+      }
+      break;
+
+    case ms_fwd_wall_stop:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.min < mission.threshold[mission.state_index]){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
     case ms_turn:
       if (turn(&mot, mission.angle[mission.state_index], mission.speed[mission.state_index], mission.time)){
         mission.state_index++;
@@ -312,11 +346,22 @@ int main(int argc, char **argv)
       }
       break;
 
-    case ms_follow_black_l_gate:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || ir.value[0] < mission.gate_threshold[mission.state_index])
+    case ms_follow_black_l_gate_1:
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.min < mission.gate_threshold[mission.state_index])
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
+        mission.gate_pos_1 = odo.x;
+      }
+      break;
+
+    case ms_follow_black_l_gate_2:
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.min > mission.gate_threshold[mission.state_index])
+      {
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+        mission.gate_pos_2 = odo.x;
+        mission.gate_pos = fabs(mission.gate_pos_2 - mission.gate_pos_1) / 2;
       }
       break;
 
@@ -330,6 +375,14 @@ int main(int argc, char **argv)
 
     case ms_follow_wall_l:
       if (follow_wall_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.dist_fromWall[mission.state_index], mission.time))
+      {
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_follow_wall_r:
+      if (follow_wall_r(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.dist_fromWall[mission.state_index], mission.time))
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -353,7 +406,7 @@ int main(int argc, char **argv)
 
     mot.left_pos = odo.left_pos;
     mot.right_pos = odo.right_pos;
-    update_motcon(&mot, &odo, &line, &ir);
+    update_motcon(&mot, &odo, &line, &ir, &laser);
     speedl->data[0] = 100 * mot.motorspeed_l;
     speedl->updated = 1;
     speedr->data[0] = 100 * mot.motorspeed_r;
@@ -361,6 +414,7 @@ int main(int argc, char **argv)
 
     update_linesensor(linesensor, &line, odo.w);
     updateIRSensor(irsensor, &ir);
+    updateLaserSensor(&laser, laserpar);
     if(logcount == 0){
       FILE *fp;
       fp = fopen("log.dat", "w");
@@ -442,6 +496,29 @@ int main(int argc, char **argv)
       {
         fprintf(fp, "%f ", ir.value[i]);
       }
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+
+    if(logcount == 0){
+      FILE *fp;
+      fp = fopen("lasersensorlog.dat", "w");
+      for (int i = 0; i < 9; i++)
+      {
+        fprintf(fp, "%f ", laser.value[i]);
+      }
+      fprintf(fp, "%f ", laser.min);
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    else{
+      FILE *fp;
+      fp = fopen("lasersensorlog.dat", "a");
+      for (int i = 0; i < 9; i++)
+      {
+        fprintf(fp, "%f ", laser.value[i]);
+      }
+      fprintf(fp, "%f ", laser.min);
       fprintf(fp, "\n");
       fclose(fp);
     }
