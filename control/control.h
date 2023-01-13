@@ -15,6 +15,8 @@ enum
   ms_fwd_wall_stop,
   ms_fwd_findgate,
   ms_fwd_findgate_stop,
+  ms_fwd_findgate_l,
+  ms_fwd_findgate_stop_l,
   ms_turn,
   ms_follow_black_l,
   ms_follow_black_l_gate_1,

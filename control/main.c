@@ -347,6 +347,22 @@ int main(int argc, char **argv)
       }
       break;
 
+    case ms_fwd_findgate_l:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[0] < mission.threshold[mission.state_index]){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_fwd_findgate_stop_l:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[0] > mission.threshold[mission.state_index]){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
     case ms_turn:
       if (turn(&mot, mission.angle[mission.state_index], mission.speed[mission.state_index], mission.time)){
         mission.state_index++;

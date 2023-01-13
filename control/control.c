@@ -390,6 +390,12 @@ void printState(int state) {
     case ms_fwd_findgate_stop:
       printf("ms_fwd_findgate_stop\n");
       break;
+    case ms_fwd_findgate_l:
+      printf("ms_fwd_findgate_l\n");
+      break;
+    case ms_fwd_findgate_stop_l:
+      printf("ms_fwd_findgate_stop_l\n");
+      break;
     case ms_turn:
       printf("ms_turn\n");
       break;
@@ -635,7 +641,7 @@ void mission_fwd_Nonblack_stop(smtype *p, int i, double dist, double speed){
 }
 
 void mission_fwd_wall_stop(smtype *p, int i, double dist, double speed, double threshold){
-  p->states_set[i] = ms_fwd_findgate;
+  p->states_set[i] = ms_fwd_wall_stop;
   p->dist[i] = dist;
   p->speed[i] = speed;
   p->threshold[i] = threshold;
@@ -650,6 +656,20 @@ void mission_fwd_findgate(smtype *p, int i, double dist, double speed, double th
 
 void mission_fwd_findgate_stop(smtype *p, int i, double dist, double speed, double threshold){
   p->states_set[i] = ms_fwd_findgate_stop;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->threshold[i] = threshold;
+}
+
+void mission_fwd_findgate_l(smtype *p, int i, double dist, double speed, double threshold){
+  p->states_set[i] = ms_fwd_findgate_l;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->threshold[i] = threshold;
+}
+
+void mission_fwd_findgate_stop_l(smtype *p, int i, double dist, double speed, double threshold){
+  p->states_set[i] = ms_fwd_findgate_stop_l;
   p->dist[i] = dist;
   p->speed[i] = speed;
   p->threshold[i] = threshold;
@@ -731,7 +751,8 @@ void mission_1(smtype *p, odotype *q){
   mission_fwd(p, i++, 0.1, 0.3);
   mission_follow_black_l_line(p, i++, 0.6, 10, 0);
   // go backward
-  mission_fwd(p, i++, -0.8, 0.3);
+  mission_fwd(p, i++, -0.4, 0.3);
+  mission_fwd_findgate_stop(p, i++, -0.8, 0.3, GATE_THRESHOLD);
   mission_turn(p, i++, -90.0, 0.3);
   mission_fwd_black_stop(p, i++, 1, 0.3);
   mission_fwd(p, i++, 0.23, 0.3);
@@ -751,10 +772,10 @@ void mission_1(smtype *p, odotype *q){
   mission_turn(p, i++, 90.0, 0.3);
   mission_fwd(p, i++, 1, 0.3);
   // find the wall
-  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.5);
+  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.2);
   mission_turn(p, i++, 90.0, 0.3);
   // follow wall
-  mission_follow_wall_r(p, i++, 0.1, 10, 0.4);
+  mission_follow_wall_r(p, i++, 0.3, 10, 0.4);
   // find gate
   mission_fwd_findgate(p, i++, 2, 0.3, GATE_THRESHOLD);
   mission_fwd_findgate_stop(p, i++, 2, 0.3, GATE_THRESHOLD);
@@ -772,8 +793,24 @@ void mission_1(smtype *p, odotype *q){
   mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   mission_fwd(p, i++, 0.1, 0.3);
   mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_follow_white_line(p, i++, 0.3, 10, 0);
-  
+  // follow white line
+    // mission_follow_white_line(p, i++, 0.3, 10, 0);
+  // if cannot follow white line
+  mission_turn(p, i++, 45.0, 0.3);
+  mission_fwd_wall_stop(p, i++, 1, 0.3, 0.2);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_fwd_findgate_l(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_fwd_findgate_stop_l(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_fwd(p, i++, 0.1, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_fwd(p, i++, 0.8, 0.3);
+  mission_turn(p, i++, 45.0, 0.3);
+  mission_fwd_wall_stop(p, i++, 1, 0.3, 0.2);
+  mission_turn(p, i++, 45.0, 0.3);
+  mission_fwd(p, i++, 0.8, 0.3);
+  mission_turn(p, i++, -45.0, 0.3);
+  mission_fwd_black_stop(p, i++, 1, 0.3);
+  // parking
   mission_fwd(p, i++, 0.23, 0.3);
   mission_turn(p, i++, -90.0, 0.3);
   mission_follow_black_l_line(p, i++, 0.3, 10, 0);
