@@ -160,7 +160,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     break;
 
   case mot_follow_black_l:
-    if ((line->find_l || line->find_l_white) && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if (fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
       double error;
       if(line->find_l){
@@ -169,14 +169,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
       else{
         error = line->left_pos_white * fabs(p->speedcmd);
       }
-      double error_black_D = error - q->error_old;
+      double error_black_D = (error - q->error_old);
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
       q->error_old = error;
+      double pid_speed = KP * error + KI * q->error_all + KD * error_black_D;
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
-      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + pid_speed);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - pid_speed);
     }
     else
     {
@@ -189,7 +190,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     break;
 
   case mot_follow_black_r:
-    if ((line->find_r || line->find_r_white) && (!(line->crossline)) && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if (fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
       double error;
       if(line->find_r){
@@ -198,14 +199,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
       else{
         error = line->right_pos_white * fabs(p->speedcmd);
       }
-      double error_black_D = error - q->error_old;
+      double error_black_D = (error - q->error_old);
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
       q->error_old = error;
+      double pid_speed = KP * error + KI * q->error_all + KD * error_black_D;
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
-      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + pid_speed);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - pid_speed);
     }
     else
     {
@@ -222,14 +224,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     {
       double error;
       error = (laser->min - p->dist_fromWall) * fabs(p->speedcmd);
-      double error_black_D = error - q->error_old;
+      double error_black_D = (error - q->error_old);
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
       q->error_old = error;
+      double pid_speed = 0.2 * (KP * error + KI * q->error_all + KD * error_black_D);
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_r = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
-      p->motorspeed_l = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) + pid_speed);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) - pid_speed);
     }
     else
     {
@@ -246,14 +249,15 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     {
       double error;
       error = (laser->min - p->dist_fromWall) * fabs(p->speedcmd);
-      double error_black_D = error - q->error_old;
+      double error_black_D = (error - q->error_old);
       double direction = fabs(p->speedcmd) / p->speedcmd;
       q->error_all += error;
       q->error_old = error;
+      double pid_speed = 0.2 * (KP * error + KI * q->error_all + KD * error_black_D);
       p->motorspeed_l_old = p->motorspeed_l;
       p->motorspeed_r_old = p->motorspeed_r;
-      p->motorspeed_l = direction * (fabs(p->speedcmd) + KP * error + KI * q->error_all + KD * error_black_D);
-      p->motorspeed_r = direction * (fabs(p->speedcmd) - KP * error - KI * q->error_all - KD * error_black_D);
+      p->motorspeed_l = direction * (fabs(p->speedcmd) + pid_speed);
+      p->motorspeed_r = direction * (fabs(p->speedcmd) - pid_speed);
     }
     else
     {
@@ -353,12 +357,69 @@ void sm_update(smtype *p)
 {
   if (p->state != p->oldstate)
   {
+    printState(p->state);
     p->time = 0;
     p->oldstate = p->state;
   }
   else
   {
     p->time++;
+  }
+}
+
+void printState(int state) {
+  switch (state) {
+    case ms_init:
+      printf("ms_init\n");
+      break;
+    case ms_fwd:
+      printf("ms_fwd\n");
+      break;
+    case ms_fwd_black_stop:
+      printf("ms_fwd_black_stop\n");
+      break;
+    case ms_fwd_Nonblack_stop:
+      printf("ms_fwd_Nonblack_stop\n");
+      break;
+    case ms_fwd_wall_stop:
+      printf("ms_fwd_wall_stop\n");
+      break;
+    case ms_fwd_findgate:
+      printf("ms_fwd_findgate\n");
+      break;
+    case ms_fwd_findgate_stop:
+      printf("ms_fwd_findgate_stop\n");
+      break;
+    case ms_turn:
+      printf("ms_turn\n");
+      break;
+    case ms_follow_black_l:
+      printf("ms_follow_black_l\n");
+      break;
+    case ms_follow_black_l_gate_1:
+      printf("ms_follow_black_l_gate_1\n");
+      break;
+    case ms_follow_black_l_gate_2:
+      printf("ms_follow_black_l_gate_2\n");
+      break;
+    case ms_follow_black_r:
+      printf("ms_follow_black_r\n");
+      break;
+    case ms_follow_white:
+      printf("ms_follow_white\n");
+      break;
+    case ms_follow_wall_l:
+      printf("ms_follow_wall_l\n");
+      break;
+    case ms_follow_wall_r:
+      printf("ms_follow_wall_r\n");
+      break;
+    case ms_wait_1s:;
+      printf("ms_wait_1s\n");
+      break;
+    case ms_end:
+      printf("ms_end\n");
+      break;
   }
 }
 
@@ -512,6 +573,9 @@ void printIRSensor(irsensortype *p) {
 }
 
 void updateLaserSensor(lasersensortype *p, double *q){
+  for(int i = 0; i < 8; i++){
+    p->value_old[i] = p->value[i];
+  }
   p->min = 1000.0;
   for(int i = 0; i < 8; i++){
     p->value[i] = *++q;
@@ -628,6 +692,13 @@ void mission_follow_black_r_line(smtype *p, int i, double speed, double dist, do
   p->color[i] = color;
 }
 
+void mission_follow_white_line(smtype *p, int i, double speed, double dist, double color){
+  p->states_set[i] = ms_follow_white;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->color[i] = color;
+}
+
 void mission_follow_wall_l(smtype *p, int i, double speed, double dist, double dist_fromWall){
   p->states_set[i] = ms_follow_wall_l;
   p->dist[i] = dist;
@@ -651,73 +722,74 @@ void mission_1(smtype *p, odotype *q){
   p->state = ms_init;
   p->state_index = 0;
   p->oldstate = -1;
-  mission_wait_1s(p, i++);
+  // mission_wait_1s(p, i++);
   // distance test
-  // mission_fwd(p, i++, 0.7, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_fwd_Nonblack_stop(p, i++, -1, 0.3);
+  mission_fwd(p, i++, FWD_DIST, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_fwd_Nonblack_stop(p, i++, -1, 0.3);
   // push box
-  // mission_fwd(p, i++, 0.1, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // // go backward
-  // mission_fwd(p, i++, -0.2, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_fwd_black_stop(p, i++, 1, 0.3);
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // //go through the first gate
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0); 
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // // find first gate
-  // mission_follow_black_l_line(p, i++, 0.2, 10, 0);
-  mission_follow_black_l_line_gate_1(p, i++, 0.2, 10, 0, 0.6);
-  mission_follow_black_l_line_gate_2(p, i++, 0.2, 10, 0, 0.6);
-  // mission_fwd(p, i++, 0.4, 0.3);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // mission_fwd(p, i++, 1, 0.3);
-  // // find the wall
-  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.5);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // // follow wall
-  // mission_follow_wall_r(p, i++, 0.1, 10, 0.4);
-  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.4);
-  // mission_fwd_black_stop(p, i++, 1, 0.3);
-  // mission_fwd_findgate(p, i++, 2, 0.3, 0.4);
-  // mission_fwd_findgate_stop(p, i++, 2, 0.3, 0.4);
-  // mission_fwd(p, i++, 0.5, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_fwd(p, i++, 0.6, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
-  // mission_fwd(p, i++, 0.5, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.1, 10, 0);
-  // mission_turn(p, i++, 180.0, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // mission_fwd(p, i++, 0.1, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.1, 0.3);
+  mission_follow_black_l_line(p, i++, 0.6, 10, 0);
+  // go backward
+  mission_fwd(p, i++, -0.8, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_fwd_black_stop(p, i++, 1, 0.3);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  //go through the first gate
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0); 
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.23, 0.3);
+  // find first gate
+  mission_follow_black_l_line_gate_1(p, i++, 0.2, 10, 0, GATE_THRESHOLD);
+  mission_follow_black_l_line_gate_2(p, i++, 0.2, 10, 0, GATE_THRESHOLD);
+  mission_fwd(p, i++, 0.6, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_fwd(p, i++, 1, 0.3);
+  // find the wall
+  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.5);
+  mission_turn(p, i++, 90.0, 0.3);
+  // follow wall
+  mission_follow_wall_r(p, i++, 0.1, 10, 0.4);
+  // find gate
+  mission_fwd_findgate(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_fwd_findgate_stop(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_fwd(p, i++, 0.8, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  // follow wall
+  mission_follow_wall_r(p, i++, 0.3, 10, 0.4);
+  // find gate
+  mission_fwd_findgate(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_fwd_findgate_stop(p, i++, 2, 0.3, GATE_THRESHOLD);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 0.8, 0);
+  mission_turn(p, i++, 180.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd(p, i++, 0.1, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_follow_white_line(p, i++, 0.3, 10, 0);
   
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.1);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
-  // mission_fwd(p, i++, 0.45, 0.3);
-  // mission_turn(p, i++, -90.0, 0.3);
-  // mission_fwd(p, i++, 0.45, 0.3);
-  // mission_turn(p, i++, -180.0, 0.3);
-  // mission_fwd(p, i++, 0.8, 0.3);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // mission_fwd_black_stop(p, i++, 1, 0.3);
-  // mission_fwd(p, i++, 0.23, 0.3);
-  // mission_turn(p, i++, 90.0, 0.3);
-  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.05);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.1);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
+  mission_fwd(p, i++, 0.45, 0.3);
+  mission_turn(p, i++, -90.0, 0.3);
+  mission_fwd(p, i++, 0.45, 0.3);
+  mission_turn(p, i++, -180.0, 0.3);
+  mission_fwd(p, i++, 0.8, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_fwd_black_stop(p, i++, 1, 0.3);
+  mission_fwd(p, i++, 0.23, 0.3);
+  mission_turn(p, i++, 90.0, 0.3);
+  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.05);
   p->states_set[i++] = ms_end;
 }

@@ -20,6 +20,7 @@ enum
   ms_follow_black_l_gate_1,
   ms_follow_black_l_gate_2,
   ms_follow_black_r,
+  ms_follow_white,
   ms_follow_wall_l,
   ms_follow_wall_r,
   ms_wait_1s,
@@ -103,7 +104,7 @@ typedef struct {
 } irsensortype;
 
 typedef struct {
-  double value[8], min;
+  double value[8], value_old[8], min;
 } lasersensortype;
 
 void updateLaserSensor(lasersensortype *p, double *q);
@@ -116,6 +117,7 @@ int follow_black_l(motiontype *mot, double speed, double dist, double color, int
 int follow_black_r(motiontype *mot, double speed, double dist, double color, int time);
 int follow_wall_l(motiontype *mot, double speed, double dist, double dist_fromWall, int time);
 int follow_wall_r(motiontype *mot, double speed, double dist, double dist_fromWall, int time);
+void printState(int state);
 void sm_update(smtype *p);
 int crossline(int i, double color, double *data);
 void update_linesensor(symTableElement *linesensor, linesensortype *line, double w);
