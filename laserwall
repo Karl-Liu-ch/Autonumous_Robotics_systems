@@ -1,0 +1,38 @@
+laser "scanpush cmd = 'zoneobst'"
+wait 2
+followline "bm" @v0.1:($l0<0.5)
+ignoreobstacles
+fwd 0.65 @v0.2
+turn 90
+%close to the wall 
+drive @v0.3 :($l4 < 0.2)
+turn 90
+%find the gate 2
+drive @v0.3 :($l8 > 0.5)
+fwd 0.4
+turn -90
+stop
+wait 1000
+
+
+
+fwd 4.8 @v2
+turn -90
+followline "bm" @v0.1:($drivendist>0.60)
+turn 180
+followline "bm" @v0.1:($crossingblackline!=0)
+turn 90
+fwd 0.2
+laser "scanpush cmd='zoneobst'"
+drive @v0.3 :($l0>0.5)
+%followwall "l" 0.2 @v0.2:($irdistleft>0.4)
+fwd 0.4
+turn 90
+fwd 0.7
+turn 90
+fwd 0.2
+laser "scanpush cmd='zoneobst'"
+drive @v0.3 :($l0>0.5)
+%followwall "l" 0.3 @v0.2:($irdistleft>0.4)
+fwd 0.5
+turn 90

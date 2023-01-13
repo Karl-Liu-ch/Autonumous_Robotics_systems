@@ -1,0 +1,110 @@
+%task measurement
+laser "scanpush cmd='zoneobst'"
+%drive @v0.1:($blacklinefound==0)
+fwd 0.6
+turn -90
+drive @v-0.1:($blacklinefound!=0)
+stop
+label "task1"
+n=100
+laser "scanpush cmd='zoneobst'"
+wait 3
+laser "scanpush cmd='zoneobst'"
+dist = $l4
+eval dist
+wait 1
+fwd 0.2
+turn 45
+
+%task pushbox
+
+ignoreobstacles
+followline "bl" @v0.2:($crossingblackline!=0)
+%followline "bl" @v0.3:($irdistright<0.4)
+ignoreobstacles
+%fwd 0.2 @v0.3
+wait 1
+fwd -1.2
+
+turn -90
+drive @v0.2:($blacklinefound!=0)
+fwd 0.2
+turn 90
+ignoreobstacles
+followline "bl" @v0.2:($crossingblackline!=0)
+fwd 0.2
+turn 90
+ignoreobstacles
+followline "bl" @v0.1:($crossingblackline!=0)
+%going through the turnnel to gate on the loose
+ignoreobstacles
+followline "bl" @v0.1:($crossingblackline!=0)
+ignoreobstacles
+fwd 0.45 @v0.2
+followline "bl" @v0.1:($crossingblackline!=0)
+fwd 0.2
+%laser from now on
+laser "scanpush cmd='zoneobst'"
+followline "bm" @v0.05:($l0<0.5)
+ignoreobstacles
+fwd 0.65 @v0.2
+turn 90
+drive @v0.2:($irdistfrontmiddle<0.2)
+turn 180
+drive @v0.1:($blacklinefound!=0)
+fwd 0.2
+turn 90
+%going to wall
+followline "bm" @v0.1:($crossingblackline!=0)
+turn 90
+fwd 0.2
+laser "scanpush cmd='zoneobst'"
+drive @v0.3 :($l0>0.5)
+%followwall "l" 0.2 @v0.2:($irdistleft>0.4)
+fwd 0.4
+turn 90
+fwd 0.7
+turn 90
+fwd 0.2
+laser "scanpush cmd='zoneobst'"
+%decide 
+drive @v0.3 :($l0>0.5)
+%followwall "l" 0.3 @v0.2:($irdistleft>0.4)
+fwd 0.5
+turn 90
+%going to whiteline
+followline "bl" @v0.1:($crossingblackline!=0)
+fwd 0.6
+turn 45
+followline "wm" @v0.1:($blacklinefound!=0)
+fwd 0.2 @v0.2
+turn -90
+%boxgate
+followline "bm" @v0.3:($crossingblackline!=0)
+drive @v0.1:($irdistfrontmiddle<0.2)
+
+turn 90
+laser "scanpush cmd='zoneobst'"
+wait 1
+drive @v0.2:($l7>0.6)
+fwd 0.6
+ignoreobstacles
+turn -90
+ignoreobstacles
+fwd 0.4
+ignoreobstacles
+%zhuang men
+turn -90 @v0.4
+ignoreobstacles
+laser "scanpush cmd='zoneobst'"
+turn -90 @v0.4
+fwd 0.3
+turn 90
+ignoreobstacles
+drive @v0.1 :($blacklinefound!=0)
+ignoreobstacles
+fwd 0.2
+ignoreobstacles
+turn 90
+ignoreobstacles
+drive @v0.1:($l4<0.1)
