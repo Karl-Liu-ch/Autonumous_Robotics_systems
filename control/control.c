@@ -218,7 +218,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     break;
 
   case mot_follow_wall_l:
-    if (laser->min < 0.4 && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if (laser->value[0] < 0.1 + p->dist_fromWall && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
       double error;
       error = (laser->min - p->dist_fromWall) * fabs(p->speedcmd);
@@ -242,7 +242,7 @@ void update_motcon(motiontype *p, odotype *q, linesensortype *line, irsensortype
     break;
 
   case mot_follow_wall_r:
-    if (laser->min < 0.4 && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
+    if (laser->value[7] < 0.1 + p->dist_fromWall && fabs((p->right_pos + p->left_pos) / 2 - p->startpos) < fabs(p->dist))
     {
       double error;
       error = (laser->min - p->dist_fromWall) * fabs(p->speedcmd);
@@ -513,8 +513,8 @@ void printIRSensor(irsensortype *p) {
 
 void updateLaserSensor(lasersensortype *p, double *q){
   p->min = 1000.0;
-  for(int i = 0; i < 9; i++){
-    p->value[i] = *q++;
+  for(int i = 0; i < 8; i++){
+    p->value[i] = *++q;
     if(p->value[i] < p->min){
       p->min = p->value[i];
     }
@@ -571,7 +571,21 @@ void mission_fwd_Nonblack_stop(smtype *p, int i, double dist, double speed){
 }
 
 void mission_fwd_wall_stop(smtype *p, int i, double dist, double speed, double threshold){
-  p->states_set[i] = ms_fwd_wall_stop;
+  p->states_set[i] = ms_fwd_findgate;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->threshold[i] = threshold;
+}
+
+void mission_fwd_findgate(smtype *p, int i, double dist, double speed, double threshold){
+  p->states_set[i] = ms_fwd_findgate;
+  p->dist[i] = dist;
+  p->speed[i] = speed;
+  p->threshold[i] = threshold;
+}
+
+void mission_fwd_findgate_stop(smtype *p, int i, double dist, double speed, double threshold){
+  p->states_set[i] = ms_fwd_findgate_stop;
   p->dist[i] = dist;
   p->speed[i] = speed;
   p->threshold[i] = threshold;
@@ -632,80 +646,78 @@ void mission_wait_1s(smtype *p, int i){
   p->states_set[i] = ms_wait_1s;
 }
 
-// void mission_wait_1s(smtype *p, int i, lasersensortype *laser){
-//   p->states_set[i] = ms_wait_1s;
-//   FILE *fp;
-//   fp = fopen("distance.dat", "w");
-//   for (int i = 0; i < 9; i++)
-//   {
-//     fprintf(fp, "%f ", laser->value[i]);
-//   }
-//   fprintf(fp, "%f ", laser->min);
-//   fprintf(fp, "\n");
-//   fclose(fp);
-// }
-
 void mission_1(smtype *p, odotype *q){
   int i = 1;
   p->state = ms_init;
   p->state_index = 0;
   p->oldstate = -1;
+  mission_wait_1s(p, i++);
   // distance test
-  mission_fwd(p, i++, 0.6, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_fwd_Nonblack_stop(p, i++, -1, 0.3);
+  // mission_fwd(p, i++, 0.7, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_fwd_Nonblack_stop(p, i++, -1, 0.3);
+  // push box
+  // mission_fwd(p, i++, 0.1, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // // go backward
+  // mission_fwd(p, i++, -0.2, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_fwd_black_stop(p, i++, 1, 0.3);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // //go through the first gate
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0); 
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // // find first gate
+  // mission_follow_black_l_line(p, i++, 0.2, 10, 0);
+  mission_follow_black_l_line_gate_1(p, i++, 0.2, 10, 0, 0.6);
+  mission_follow_black_l_line_gate_2(p, i++, 0.2, 10, 0, 0.6);
+  // mission_fwd(p, i++, 0.4, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd(p, i++, 1, 0.3);
+  // // find the wall
+  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.5);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // // follow wall
+  // mission_follow_wall_r(p, i++, 0.1, 10, 0.4);
+  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.4);
+  // mission_fwd_black_stop(p, i++, 1, 0.3);
+  // mission_fwd_findgate(p, i++, 2, 0.3, 0.4);
+  // mission_fwd_findgate_stop(p, i++, 2, 0.3, 0.4);
+  // mission_fwd(p, i++, 0.5, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_fwd(p, i++, 0.6, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
+  // mission_fwd(p, i++, 0.5, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.1, 10, 0);
+  // mission_turn(p, i++, 180.0, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd(p, i++, 0.1, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
   
-  mission_fwd(p, i++, 0.1, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, -0.7, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_fwd_black_stop(p, i++, 1, 0.3);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0); //go through the first gate
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_follow_black_l_line_gate_1(p, i++, 0.3, 10, 0, 0.4);
-  mission_follow_black_l_line_gate_2(p, i++, 0.3, 10, 0, 0.4);
-  mission_fwd(p, i++, 0.5 - p->gate_pos, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_fwd(p, i++, 1, 0.3);
-  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.1);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
-  mission_fwd(p, i++, 0.5, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_fwd(p, i++, 0.6, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
-  mission_fwd(p, i++, 0.5, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 0.6, 0);
-  mission_turn(p, i++, 180.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd(p, i++, 0.1, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.1);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
-  mission_fwd(p, i++, 0.45, 0.3);
-  mission_turn(p, i++, -90.0, 0.3);
-  mission_fwd(p, i++, 0.45, 0.3);
-  mission_turn(p, i++, -180.0, 0.3);
-  mission_fwd(p, i++, 0.8, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_fwd_black_stop(p, i++, 1, 0.3);
-  mission_fwd(p, i++, 0.23, 0.3);
-  mission_turn(p, i++, 90.0, 0.3);
-  mission_follow_black_l_line(p, i++, 0.3, 10, 0);
-  mission_fwd_wall_stop(p, i++, 2, 0.3, 0.05);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.1);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_follow_wall_r(p, i++, 0.3, 10, 0.3);
+  // mission_fwd(p, i++, 0.45, 0.3);
+  // mission_turn(p, i++, -90.0, 0.3);
+  // mission_fwd(p, i++, 0.45, 0.3);
+  // mission_turn(p, i++, -180.0, 0.3);
+  // mission_fwd(p, i++, 0.8, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_fwd_black_stop(p, i++, 1, 0.3);
+  // mission_fwd(p, i++, 0.23, 0.3);
+  // mission_turn(p, i++, 90.0, 0.3);
+  // mission_follow_black_l_line(p, i++, 0.3, 10, 0);
+  // mission_fwd_wall_stop(p, i++, 2, 0.3, 0.05);
   p->states_set[i++] = ms_end;
 }

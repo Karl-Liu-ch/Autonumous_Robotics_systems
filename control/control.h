@@ -13,6 +13,8 @@ enum
   ms_fwd_black_stop,
   ms_fwd_Nonblack_stop,
   ms_fwd_wall_stop,
+  ms_fwd_findgate,
+  ms_fwd_findgate_stop,
   ms_turn,
   ms_follow_black_l,
   ms_follow_black_l_gate_1,
@@ -101,7 +103,7 @@ typedef struct {
 } irsensortype;
 
 typedef struct {
-  double value[9], min;
+  double value[8], min;
 } lasersensortype;
 
 void updateLaserSensor(lasersensortype *p, double *q);

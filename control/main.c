@@ -331,6 +331,22 @@ int main(int argc, char **argv)
       }
       break;
 
+    case ms_fwd_findgate:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[7] < mission.threshold[mission.state_index]){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_fwd_findgate_stop:
+
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[7] > mission.threshold[mission.state_index]){
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
     case ms_turn:
       if (turn(&mot, mission.angle[mission.state_index], mission.speed[mission.state_index], mission.time)){
         mission.state_index++;
@@ -347,7 +363,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_l_gate_1:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.min < mission.gate_threshold[mission.state_index])
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.value[0] < mission.gate_threshold[mission.state_index])
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -356,7 +372,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_l_gate_2:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.min > mission.gate_threshold[mission.state_index])
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.value[0] > mission.gate_threshold[mission.state_index])
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -444,8 +460,7 @@ int main(int argc, char **argv)
       fprintf(fp, "%f ", line.left_pos);
       fprintf(fp, "%f ", line.right_pos);
       fprintf(fp, "%d ", line.find_l);
-      fprintf(fp, "%d ", line.left_white);
-      fprintf(fp, "%d ", line.right_white);
+      fprintf(fp, "%d ", line.maxIndex);
       fprintf(fp, "%f ", line.left_pos_white);
       fprintf(fp, "%f ", line.right_pos_white);
       fprintf(fp, "%d ", line.find_l_white);
@@ -469,8 +484,7 @@ int main(int argc, char **argv)
       fprintf(fp, "%f ", line.left_pos);
       fprintf(fp, "%f ", line.right_pos);
       fprintf(fp, "%d ", line.find_l);
-      fprintf(fp, "%d ", line.left_white);
-      fprintf(fp, "%d ", line.right_white);
+      fprintf(fp, "%d ", line.maxIndex);
       fprintf(fp, "%f ", line.left_pos_white);
       fprintf(fp, "%f ", line.right_pos_white);
       fprintf(fp, "%d ", line.find_l_white);
