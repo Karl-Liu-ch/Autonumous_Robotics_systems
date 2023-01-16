@@ -406,7 +406,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_white:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_l_white)) || line.crossline_white)
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_l_white)) || line.crossline_white || line.crossline)
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -534,6 +534,23 @@ int main(int argc, char **argv)
       {
         fprintf(fp, "%f ", ir.value[i]);
       }
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    
+    if(logcount == 0){
+      FILE *fp;
+      fp = fopen("PID.dat", "w");
+      fprintf(fp, "%d ", logcount);
+      fprintf(fp, "%f ", line.left_pos_white);
+      fprintf(fp, "\n");
+      fclose(fp);
+    }
+    else{
+      FILE *fp;
+      fp = fopen("PID.dat", "a");
+      fprintf(fp, "%d ", logcount);
+      fprintf(fp, "%f ", line.left_pos_white);
       fprintf(fp, "\n");
       fclose(fp);
     }

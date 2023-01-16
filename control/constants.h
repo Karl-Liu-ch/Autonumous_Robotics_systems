@@ -1,53 +1,55 @@
 
 // real robot
-// #define ED1 0.9919
-// #define ED2 0.9963
-// #define WHEEL_SEPARATION 0.2369 /* m */
-// #define BLACK_VALUE(i) (i == 0 ? 76 : \
-// 	       i == 1 ? 55 : \
-// 	       i == 2 ? 56 : \
-// 	       i == 3 ? 61 : \
-// 	       i == 4 ? 55 : \
-// 	       i == 5 ? 55 : \
-// 	       i == 6 ? 55 : \
-// 	       i == 7 ? 56 : \
-// 	       0 )
-// #define WHITE_VALUE(i) (i == 0 ? 108 : \
-// 	       i == 1 ? 69 : \
-// 	       i == 2 ? 72 : \
-// 	       i == 3 ? 82 : \
-// 	       i == 4 ? 69 : \
-// 	       i == 5 ? 70 : \
-// 	       i == 6 ? 70 : \
-// 	       i == 7 ? 70 : \
-// 	       0 )
-// #define GATE_THRESHOLD 0.6
-// #define FWD_DIST 0.7
+#define ED1 0.9919
+#define ED2 0.9963
+#define WHEEL_SEPARATION 0.2369 /* m */
+#define BLACK_VALUE(i) (i == 0 ? 68 : \
+	       i == 1 ? 55 : \
+	       i == 2 ? 55 : \
+	       i == 3 ? 59 : \
+	       i == 4 ? 55 : \
+	       i == 5 ? 55 : \
+	       i == 6 ? 55 : \
+	       i == 7 ? 55 : \
+	       0 )
+#define WHITE_VALUE(i) (i == 0 ? 102 : \
+	       i == 1 ? 70 : \
+	       i == 2 ? 72 : \
+	       i == 3 ? 81 : \
+	       i == 4 ? 70 : \
+	       i == 5 ? 70 : \
+	       i == 6 ? 70 : \
+	       i == 7 ? 70 : \
+	       0 )
+#define GATE_THRESHOLD 0.6
+#define FWD_DIST 0.7
+#define ROBOTLENGTH 0.5
 
 // simulation
-#define ED1 1
-#define ED2 1
-#define WHEEL_SEPARATION 0.26 /* m */
-#define BLACK_VALUE(i) (i == 0 ? 0 : \
-	       i == 1 ? 0 : \
-	       i == 2 ? 0 : \
-	       i == 3 ? 0 : \
-	       i == 4 ? 0 : \
-	       i == 5 ? 0 : \
-	       i == 6 ? 0 : \
-	       i == 7 ? 0 : \
-	       0 )
-#define WHITE_VALUE(i) (i == 0 ? 255 : \
-	       i == 1 ? 255 : \
-	       i == 2 ? 255 : \
-	       i == 3 ? 255 : \
-	       i == 4 ? 255 : \
-	       i == 5 ? 255 : \
-	       i == 6 ? 255 : \
-	       i == 7 ? 255 : \
-	       0 )
-#define GATE_THRESHOLD 0.5
-#define FWD_DIST 0.6
+// #define ED1 1
+// #define ED2 1
+// #define WHEEL_SEPARATION 0.26 /* m */
+// #define BLACK_VALUE(i) (i == 0 ? 0 : \
+// 	       i == 1 ? 0 : \
+// 	       i == 2 ? 0 : \
+// 	       i == 3 ? 0 : \
+// 	       i == 4 ? 0 : \
+// 	       i == 5 ? 0 : \
+// 	       i == 6 ? 0 : \
+// 	       i == 7 ? 0 : \
+// 	       0 )
+// #define WHITE_VALUE(i) (i == 0 ? 255 : \
+// 	       i == 1 ? 255 : \
+// 	       i == 2 ? 255 : \
+// 	       i == 3 ? 255 : \
+// 	       i == 4 ? 255 : \
+// 	       i == 5 ? 255 : \
+// 	       i == 6 ? 255 : \
+// 	       i == 7 ? 255 : \
+// 	       0 )
+// #define GATE_THRESHOLD 0.5
+// #define FWD_DIST 0.6
+// #define ROBOTLENGTH 0.23
 
 #define WHEEL_DIAMETER_L 0.06522 * (1 + (1 - ED1) / 2) * (1 + (1 - ED2) / 2)/* m */
 #define WHEEL_DIAMETER_R 0.06522 * (1 - (1 - ED1) / 2) * (1 - (1 - ED2) / 2)
@@ -58,10 +60,10 @@
 #define K 2.0
 #define KP 10.0
 #define KI 0.0
-#define KD -5.0
+#define KD 50.0
 #define ACCELERATION 1.0
 
-#define BLACK_LINE_FOUND_VALUE 0.3 /* If all the line sensors are below this value, then the robot must have crossed a black line */
+#define BLACK_LINE_FOUND_VALUE 0.35 /* If all the line sensors are below this value, then the robot must have crossed a black line */
 #define WHITE_LINE_FOUND_VALUE 0.7 /* If all the line sensors are above this value, then the robot must have crossed a white line */
 #define kA(i) (i == 0 ? 15.7642 : \
 	       i == 1 ? 14.5691 : \
