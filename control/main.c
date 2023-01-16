@@ -311,6 +311,7 @@ int main(int argc, char **argv)
       if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || (!(line.find_l)) || (!(line.find_r))){
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
+        printf("distance: %f ", laser.value[3], laser.value[4]);
         FILE *fp;
         fp = fopen("distance.dat", "w");
         for (int i = 0; i < 9; i++)
@@ -325,7 +326,7 @@ int main(int argc, char **argv)
 
     case ms_fwd_wall_stop:
 
-      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.min < mission.threshold[mission.state_index]){
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[4] < mission.threshold[mission.state_index]){
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
       }
@@ -333,7 +334,7 @@ int main(int argc, char **argv)
 
     case ms_fwd_findgate:
 
-      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[7] < mission.threshold[mission.state_index]){
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[8] < mission.threshold[mission.state_index]){
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
       }
@@ -341,7 +342,7 @@ int main(int argc, char **argv)
 
     case ms_fwd_findgate_stop:
 
-      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[7] > mission.threshold[mission.state_index]){
+      if (fwd(&mot, mission.dist[mission.state_index], mission.speed[mission.state_index], mission.time) || laser.value[8] > mission.threshold[mission.state_index]){
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
       }
@@ -406,7 +407,7 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_white:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_l_white)) || line.crossline_white || line.crossline)
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || line.crossline)
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
