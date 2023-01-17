@@ -4,7 +4,7 @@
 #define ED2 0.9963
 #define WHEEL_SEPARATION 0.2369 /* m */
 // smr8
-#define BLACK_VALUE(i) (i == 0 ? 69.39 : \
+#define BLACK_VALUE(i) (i == 0 ? 71.07 : \
 	       i == 1 ? 55.12 : \
 	       i == 2 ? 55.31 : \
 	       i == 3 ? 59.11 : \
@@ -13,9 +13,9 @@
 	       i == 6 ? 55.27 : \
 	       i == 7 ? 55.93 : \
 	       0 )
-#define WHITE_VALUE(i) (i == 0 ? 101.05 : \
-	       i == 1 ? 69.13 : \
-	       i == 2 ? 71.85 : \
+#define WHITE_VALUE(i) (i == 0 ? 102.26 : \
+	       i == 1 ? 69.05 : \
+	       i == 2 ? 71.81 : \
 	       i == 3 ? 80.16 : \
 	       i == 4 ? 69.59 : \
 	       i == 5 ? 69.74 : \

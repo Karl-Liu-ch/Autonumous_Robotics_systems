@@ -18,10 +18,12 @@ enum
   ms_fwd_findgate_l,
   ms_fwd_findgate_stop_l,
   ms_turn,
+  ms_turn_find_black,
   ms_follow_black_l,
   ms_follow_black_l_gate_1,
   ms_follow_black_l_gate_2,
   ms_follow_black_r,
+  ms_follow_black_r_wall_stop,
   ms_follow_white,
   ms_follow_wall_l,
   ms_follow_wall_r,
@@ -82,7 +84,7 @@ typedef struct
 
 typedef struct
 {
-  int left, right, length, find_l, find_r, crossline, left_white, right_white, find_l_white, find_r_white, crossline_white, maxIndex, minIndex;
+  int left, right, length, find_l, find_l_old, find_r, find_r_old, crossline, left_white, right_white, find_l_white, find_r_white, crossline_white, maxIndex, minIndex;
   double left_pos, right_pos, left_pos_white, right_pos_white, max, min;
   double line_raw[8], line_calibrate[8], line_calibrate_raw[8];
 } linesensortype;

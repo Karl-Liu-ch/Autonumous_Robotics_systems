@@ -371,8 +371,18 @@ int main(int argc, char **argv)
       }
       break;
 
+    case ms_turn_find_black:
+      if (turn(&mot, mission.angle[mission.state_index], mission.speed[mission.state_index], mission.time) || line.line_calibrate[2] < BLACK_LINE_FOUND_VALUE){
+        if(line.find_r){
+          printf("find black line");
+        }
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
     case ms_follow_black_l:
-      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_l)) || line.crossline)
+      if (follow_black_l(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_l) && !(line.find_l_old)) || line.crossline)
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -399,7 +409,15 @@ int main(int argc, char **argv)
       break;
 
     case ms_follow_black_r:
-      if (follow_black_r(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_r)) || line.crossline)
+      if (follow_black_r(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || (!(line.find_r) && !(line.find_r_old)) || line.crossline)
+      {
+        mission.state_index++;
+        mission.state = mission.states_set[mission.state_index];
+      }
+      break;
+
+    case ms_follow_black_r_wall_stop:
+      if (follow_black_r(&mot, mission.speed[mission.state_index], mission.dist[mission.state_index], mission.color[mission.state_index], mission.time) || laser.value[4] < mission.threshold[mission.state_index])
       {
         mission.state_index++;
         mission.state = mission.states_set[mission.state_index];
@@ -453,6 +471,8 @@ int main(int argc, char **argv)
     speedr->data[0] = 100 * mot.motorspeed_r;
     speedr->updated = 1;
 
+    line.find_l_old  = line.find_l;
+    line.find_r_old = line.find_r;
     update_linesensor(linesensor, &line, odo.w);
     updateIRSensor(irsensor, &ir);
     updateLaserSensor(&laser, laserpar);
